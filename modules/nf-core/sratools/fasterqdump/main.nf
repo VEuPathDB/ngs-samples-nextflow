@@ -43,7 +43,9 @@ process SRATOOLS_FASTERQDUMP {
         ${key_file} \\
         ${sra}
 
-    $exclude_third
+    if [ -f "${meta.id}_2.fastq" ]; then
+        mv $outfile $prefix || echo 'No third file'
+    fi
 
     pigz \\
         $args2 \\
@@ -86,7 +88,9 @@ process SRATOOLS_FASTERQDUMP {
         ${key_file} \\
         ${sra}"
 
-    $exclude_third
+    if [ -f "${meta.id}_2.fastq" ]; then
+        mv $outfile $prefix || echo 'No third file'
+    fi
 
     pigz \\
         $args2 \\
