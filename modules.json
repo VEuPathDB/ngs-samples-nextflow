@@ -1,0 +1,22 @@
+{
+  "name": "",
+  "homePage": "",
+  "repos": {
+    "https://github.com/nf-core/modules.git": {
+      "modules": {
+        "nf-core": {
+          "sratools/fasterqdump": {
+            "branch": "master",
+            "git_sha": "3e548877f25a5980a177cc4f81d2d2e8c24164ef",
+            "installed_by": ["modules"]
+          },
+          "sratools/prefetch": {
+            "branch": "master",
+            "git_sha": "666652151335353eef2fcd58880bcef5bc2928e1",
+            "installed_by": ["modules"]
+          }
+        }
+      }
+    }
+  }
+}
