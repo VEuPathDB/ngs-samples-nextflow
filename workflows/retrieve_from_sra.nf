@@ -4,9 +4,9 @@
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
 
-include { SRATOOLS_FASTERQDUMP                      } from '../../../modules/nf-core/sratools/fasterqdump/main'
-include { SRATOOLS_PREFETCH                         } from '../../../modules/nf-core/sratools/prefetch/main'
-include { FORMAT_INPUT_FROM_SRA                     } from '../../../modules/local/format_input_from_sra'
+include { SRATOOLS_FASTERQDUMP                      } from '../modules/nf-core/sratools/fasterqdump/main'
+include { SRATOOLS_PREFETCH                         } from '../modules/nf-core/sratools/prefetch/main'
+include { FORMAT_INPUT_FROM_SRA                     } from '../modules/local/format_input_from_sra'
 
 /*
 ========================================================================================
@@ -17,20 +17,16 @@ include { FORMAT_INPUT_FROM_SRA                     } from '../../../modules/loc
 workflow RETRIEVE_FROM_SRA {
 
     take:
-    input
+    samples
 
     main:
-
-    samples = Channel.fromPath(input)
-                     .splitCsv()
-		     .map { row ->
-		            return [[id: row[0]], row[1] ]
-	             }
-
     SRATOOLS_PREFETCH(samples,[],[]);
     SRATOOLS_FASTERQDUMP(SRATOOLS_PREFETCH.out.sra,[],[]);
+
+
+
     FORMAT_INPUT_FROM_SRA(SRATOOLS_FASTERQDUMP.out.reads);
-    formatted = FORMAT_INPUT_FROM_SRA.out.collectFile(keepHeader: true, storeDir: params.outdir, name: "formattedSraInput.csv")
+    formatted = FORMAT_INPUT_FROM_SRA.out.samplesheet.collectFile(keepHeader: true, storeDir: params.outDir, name: params.samplesheetName)
 
     emit:
     formattedInput = formatted
