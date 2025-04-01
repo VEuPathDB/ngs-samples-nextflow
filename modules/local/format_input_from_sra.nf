@@ -4,7 +4,7 @@ process FORMAT_INPUT_FROM_SRA {
 
     shell '/bin/sh'
 
-    container 'docker.io/veupathdb/alpine_bash:v1.0.0'
+    container 'docker.io/veupathdb/alpine_bash:1.0.0'
 
     publishDir params.outDir, mode: 'copy', pattern: "*fastq*"
 
