@@ -3,12 +3,13 @@
 For NGS processing we need fastq files and a samplesheet.
 
 - CASE1 :: download from SRA
-  - input file is list of sra ids
-  - download from sra and make samplesheet
-  - paths in output sample sheet are absolute compute environmnet
+  - input file is nf core samplesheet format
+  - SRA ID is found in "fastq1" column
+  - download from sra and make new samplesheet
+  - paths in output samplesheet are absolute compute environment
   - outputDir will contain sample sheet and fastq files
 - CASE2 :: local fastq files
-  - input file has samplesheet header and one or more columns for names of fastq files (but relative paths only)
-  - paths in output sample sheet will be abosolute paths on cluster
+  - input file is nf core samplesheet format
+  - values in samplesheet will be relative paths  (typically in same directory as samplesheet)
+  - paths in output sample sheet will be absolute for compute environment
   - outputDir will contain output sample sheet
-  - NOTE:  the sample sheet with relative paths may be ok?  but for consitency we make a new samplesheet with abolute paths
