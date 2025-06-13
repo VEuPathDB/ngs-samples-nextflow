@@ -19,7 +19,7 @@ workflow {
 
     if(params.fromSra) {
         RETRIEVE_FROM_SRA(samples.map { row ->
-            return [ [id: row[0], strand: row[3] ], row[1]]
+            return [ [id: row[0], var1: row[3] ], row[1]]
         })
     }
     else {
@@ -28,9 +28,9 @@ workflow {
 
             if(row[2]) {
                 fasta2 = file(params.input + "/" + row[2])
-                return [ [id: row[0], strand: row[3] ], [fasta1, fasta2] ]
+                return [ [id: row[0], var1: row[3] ], [fasta1, fasta2] ]
             }
-            return [ [id: row[0], strand: row[3] ], [fasta1] ]
+            return [ [id: row[0], var1: row[3] ], [fasta1] ]
 
             })
         formatted = FORMAT_INPUT_FROM_SRA.out.samplesheet.collectFile(keepHeader: true, storeDir: params.outDir, name: params.samplesheetName)
