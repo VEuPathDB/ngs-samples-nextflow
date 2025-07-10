@@ -14,7 +14,7 @@ include { FORMAT_INPUT_FROM_SRA   } from './modules/local/format_input_from_sra'
 
 workflow {
 
-    samples = Channel.fromPath(params.input + "/samplesheet.csv" )
+    samples = Channel.fromPath(params.input + "/" + params.samplesheetName )
         .splitCsv( skip:1)
 
     if(params.fromSra) {
