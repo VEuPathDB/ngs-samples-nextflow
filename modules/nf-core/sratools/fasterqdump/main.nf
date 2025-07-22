@@ -16,14 +16,19 @@ process SRATOOLS_FASTERQDUMP {
     tuple val(meta), path('*.fastq.gz'), emit: reads
     path "versions.yml"                , emit: versions
 
+    errorStrategy 'retry'
+
+    maxRetries 1
+
     when:
     task.ext.when == null || task.ext.when
 
     script:
+    def sraCommand = task.attempt > 1 ? "fastq-dump" : "fasterq-dump";
     def args = task.ext.args ?: ''
     def args2 = task.ext.args2 ?: ''
     def prefix = task.ext.prefix ?: "${meta.id}"
-    def outfile = "${prefix}.fastq"
+    def outfile = "${sra}.fastq"
     def exclude_third = meta.single_end ? '' : "mv $outfile $prefix || echo 'No third file'"
     // Excludes the "${prefix}.fastq" file from output `reads` channel for paired end cases and
     // avoids the '.' in the path bug: https://github.com/ncbi/sra-tools/issues/865
@@ -36,10 +41,8 @@ process SRATOOLS_FASTERQDUMP {
     """
     export NCBI_SETTINGS="\$PWD/${ncbi_settings}"
 
-    fasterq-dump \\
+    $sraCommand \\
         $args \\
-        --threads $task.cpus \\
-        --outfile $outfile \\
         ${key_file} \\
         ${sra}
 
