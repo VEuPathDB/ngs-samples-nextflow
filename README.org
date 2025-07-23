@@ -1,15 +1,180 @@
-#+title: Readme
+#+title: NGS Samples Nextflow Pipeline
+#+author: VEuPathDB
+#+date: 2024
 
-For NGS processing we need fastq files and a samplesheet.
+* Overview
 
-- CASE1 :: download from SRA
-  - input file is nf core samplesheet format
-  - SRA ID is found in "fastq1" column
-  - download from sra and make new samplesheet
-  - paths in output samplesheet are absolute compute environment
-  - outputDir will contain sample sheet and fastq files
-- CASE2 :: local fastq files
-  - input file is nf core samplesheet format
-  - values in samplesheet will be relative paths  (typically in same directory as samplesheet)
-  - paths in output sample sheet will be absolute for compute environment
-  - outputDir will contain output sample sheet
+This Nextflow pipeline prepares NGS (Next Generation Sequencing) FASTQ files and creates standardized samplesheets for downstream bioinformatics analysis. The pipeline handles two primary use cases:
+
+1. *SRA Download*: Downloads FASTQ files from NCBI's Sequence Read Archive (SRA) 
+2. *Local Files*: Processes existing local FASTQ files
+
+The pipeline includes intelligent file concatenation for multi-replicate samples and adaptive read subsampling based on assay type and genome size.
+
+* Key Features
+
+** Multi-Sample Concatenation
+- Automatically detects and concatenates FASTQ files from multiple rows with the same sample ID
+- Maintains proper pairing for paired-end sequencing data
+- Supports both single-end and paired-end data formats
+
+** Intelligent Read Subsampling  
+- Calculates optimal read counts based on assay type (DNASeq/RNASeq) and genome size
+- DNASeq: targets 30× coverage
+- RNASeq: targets 50× coverage (higher due to expression variation)
+- Bounded between 1M-100M reads per sample
+- Uses seqtk for reproducible random subsampling
+
+** Flexible Input Sources
+- Downloads from SRA using prefetch and fasterq-dump
+- Processes local FASTQ files with path normalization
+- Handles compressed (.gz) and uncompressed FASTQ files
+
+* Quick Start
+
+** Prerequisites
+- Nextflow (≥21.04.0)
+- Docker or Singularity/Apptainer
+- Input samplesheet in CSV format
+
+** Basic Usage
+
+#+begin_src bash
+# Download from SRA
+nextflow run main.nf \
+  --fromSra true \
+  --input /path/to/samplesheet \
+  --outDir /path/to/output
+
+# Process local files  
+nextflow run main.nf \
+  --input /path/to/samplesheet \
+  --outDir /path/to/output
+
+# RNA-seq with custom genome size
+nextflow run main.nf \
+  --assayType RNASeq \
+  --genomeSize 120000000 \
+  --input /path/to/samplesheet
+#+end_src
+
+* Input Format
+
+The pipeline expects a CSV samplesheet with the following columns:
+
+| Column | Description | Example |
+|--------|-------------|---------|
+| sample | Sample identifier (can repeat for replicates) | =sample1= |
+| fastq_1 | Path to R1 FASTQ or SRA accession | =data/sample1_R1.fastq.gz= |
+| fastq_2 | Path to R2 FASTQ (optional for paired-end) | =data/sample1_R2.fastq.gz= |
+| var1 | Additional sample metadata | =treatment_A= |
+
+** Example Samplesheet
+#+begin_src csv
+sample,fastq_1,fastq_2,var1
+sample1,SRR123456,,control
+sample1,SRR123457,,control  
+sample2,data/sample2_R1.fastq.gz,data/sample2_R2.fastq.gz,treatment
+#+end_src
+
+*Note*: Multiple rows with the same sample ID will be automatically concatenated.
+
+* Parameters
+
+** Core Parameters
+- =--input=: Directory containing the samplesheet (default: =$launchDir/data/samplesheet=)
+- =--samplesheetName=: Name of the samplesheet file (default: =samplesheet.csv=)
+- =--fromSra=: Download from SRA vs. process local files (default: =false=)
+- =--outDir=: Output directory (default: =$launchDir/ngs-samples-output=)
+
+** Subsampling Parameters
+- =--assayType=: Sequencing assay type - "DNASeq" or "RNASeq" (default: ="DNASeq"=)
+- =--genomeSize=: Target genome size in base pairs (default: ="3000000000"= for human)
+- =--maxReads=: Manual override for maximum reads per sample (default: =null=)
+
+* Output
+
+The pipeline produces:
+- *Processed FASTQ files*: Concatenated and subsampled as needed
+- *Standardized samplesheet*: CSV with absolute paths to processed files
+- *Process logs*: Detailed execution information
+
+Output samplesheet format:
+#+begin_src csv
+sample,fastq_1,fastq_2,var1
+sample1,/abs/path/sample1_subsampled.fastq.gz,,control
+sample2,/abs/path/sample2_1_subsampled.fastq.gz,/abs/path/sample2_2_subsampled.fastq.gz,treatment
+#+end_src
+
+* Pipeline Architecture
+
+The pipeline follows this processing flow:
+
+1. *Input parsing*: Read and group samplesheet by sample ID
+2. *File acquisition*: Download from SRA or validate local files  
+3. *Concatenation*: Merge replicates per sample (if multiple entries)
+4. *Subsampling*: Limit reads based on coverage targets
+5. *Formatting*: Generate final samplesheet with absolute paths
+
+** Container Images
+- SRA tools: =biocontainers/sra-tools=
+- Subsampling: =staphb/seqtk:1.4=
+- File processing: =docker.io/veupathdb/alpine_bash:1.0.0=
+
+* Configuration
+
+** Docker (default)
+#+begin_src bash
+nextflow run main.nf -c conf/docker.config
+#+end_src
+
+** Singularity
+#+begin_src bash  
+nextflow run main.nf -c conf/singularity.config
+#+end_src
+
+** HPC with LSF
+#+begin_src bash
+nextflow run main.nf -c conf/lsf.config
+#+end_src
+
+* Examples
+
+** Human Whole Genome Sequencing
+#+begin_src bash
+nextflow run main.nf \
+  --assayType DNASeq \
+  --genomeSize 3000000000 \
+  --input data/human_wgs
+#+end_src
+
+** Yeast RNA-seq
+#+begin_src bash
+nextflow run main.nf \
+  --assayType RNASeq \
+  --genomeSize 12000000 \
+  --input data/yeast_rnaseq
+#+end_src
+
+** Custom Read Limit
+#+begin_src bash
+nextflow run main.nf \
+  --maxReads 5000000 \
+  --input data/pilot_study
+#+end_src
+
+* Development
+
+** Testing
+#+begin_src bash
+# Test individual modules
+nextflow test modules/nf-core/sratools/fasterqdump/tests/main.nf.test
+nextflow test modules/nf-core/sratools/prefetch/tests/main.nf.test
+#+end_src
+
+** Contributing
+See =CLAUDE.md= for detailed development guidance and architecture information.
+
+* Support
+
+For issues and feature requests, please contact the VEuPathDB development team or create an issue in the project repository.
