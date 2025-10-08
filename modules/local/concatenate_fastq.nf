@@ -2,7 +2,7 @@ process CONCATENATE_FASTQ {
     tag "$meta.id"
     label 'process_low'
 
-    shell '/bin/sh'
+    shell '/bin/bash'
 
     container 'docker.io/veupathdb/alpine_bash:1.0.0'
 
@@ -22,10 +22,11 @@ process CONCATENATE_FASTQ {
     def file_list = fastq_files instanceof List ? fastq_files : [fastq_files]
     def has_paired_files = file_list.any { it.name.contains('_1.fastq') || it.name.contains('_2.fastq') || it.name.contains('_R1') || it.name.contains('_R2') }
     
-    if (!has_paired_files || file_list.size() == 1) {
-        // Single-end case or single file
+    if (!has_paired_files) {
+        // Single-end case 
         """        
-        cat ${file_list.join(' ')} > ${meta.id}.fastq.gz
+        zcat ${file_list.join(' ')} > ${meta.id}.fastq 
+        gzip ${meta.id}.fastq
         """
     } else {
         // Paired-end: separate R1 and R2 files and concatenate each
@@ -42,25 +43,20 @@ process CONCATENATE_FASTQ {
             elif [[ "\$basename_file" == *"_2.fastq"* ]] || [[ "\$basename_file" == *"_R2"* ]]; then
                 r2_files+=("\$file")
             else
-                # Default to R1 if we can't determine
-                r1_files+=("\$file")
+               exit 1
             fi
         done
         
         # Concatenate R1 files if any exist
         if [ \${#r1_files[@]} -gt 0 ]; then
-            cat "\${r1_files[@]}" > ${meta.id}_1.fastq.gz
+            zcat "\${r1_files[@]}" > ${meta.id}_1.fastq
+            gzip ${meta.id}_1.fastq
         fi
         
         # Concatenate R2 files if any exist  
         if [ \${#r2_files[@]} -gt 0 ]; then
-            cat "\${r2_files[@]}" > ${meta.id}_2.fastq.gz
-        fi
-        
-        # If we only have R1 files, create an empty R2 to maintain pairing
-        if [ \${#r1_files[@]} -gt 0 ] && [ \${#r2_files[@]} -eq 0 ]; then
-            # This is actually single-end, rename accordingly
-            mv ${meta.id}_1.fastq.gz ${meta.id}.fastq.gz
+            zcat "\${r2_files[@]}" > ${meta.id}_2.fastq.gz
+            gzip ${meta.id}_2.fastq.gz
         fi
         """
     }

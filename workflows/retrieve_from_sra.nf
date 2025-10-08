@@ -44,7 +44,7 @@ workflow RETRIEVE_FROM_SRA {
             all_reads = read_lists.flatten()
             return [ metas[0], all_reads ]
         }
-    
+
     CONCATENATE_FASTQ(grouped_reads)
     
     // Subsample reads to limit coverage

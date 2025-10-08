@@ -10,24 +10,25 @@ nextflow.enable.dsl = 2
 
 def calculateMaxReads(assayType, genomeSize) {
     // If maxReads is explicitly set, use that value
-    if (params.maxReads != null) {
-        return params.maxReads.toLong()
+    if (assayType == "RNASeq") {
+        int maxReads = 20000000;
+        return maxReads.toLong()
     }
     
-    def genomeSizeLong = genomeSize.toString().toLong()
+    def genomeSizeLong = genomeSize.toLong()
     def targetCoverage
     def readLength = 150  // Assume 150bp reads
     
     // Set target coverage based on assay type
     switch(assayType) {
         case "DNASeq":
-            targetCoverage = 30  // 30x coverage for DNA-seq
+            targetCoverage = 60  // 60x coverage for DNA-seq
             break
-        case "RNASeq":
-            targetCoverage = 50  // Higher coverage for RNA-seq due to expression variation
+        case "ChipSeq":
+            targetCoverage = 60  // 60x coverage for Chip-seq
             break
         default:
-            targetCoverage = 30  // Default to DNA-seq coverage
+            targetCoverage = 60  // Default to DNA-seq coverage
             break
     }
     
@@ -72,7 +73,7 @@ workflow {
             // Use the first meta (they should be the same except for SRA IDs)
             return [ metas[0], sra_ids ]
         }
-        
+
         RETRIEVE_FROM_SRA(grouped_sra_samples, max_reads)
     }
     else {
