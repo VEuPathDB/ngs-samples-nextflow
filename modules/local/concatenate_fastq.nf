@@ -20,9 +20,9 @@ process CONCATENATE_FASTQ {
     script:
     // Check if we have only single files or if this is mixed single/paired
     def file_list = fastq_files instanceof List ? fastq_files : [fastq_files]
-    def has_paired_files = file_list.any { it.name.contains('_1.fastq') || it.name.contains('_2.fastq') || it.name.contains('_R1') || it.name.contains('_R2') }
+    //def has_paired_files = file_list.any { it.name.contains('_1.fastq') || it.name.contains('_2.fastq') || it.name.contains('_R1') || it.name.contains('_R2') }
     
-    if (!has_paired_files) {
+    if (!meta.hasPairedReads) {
         // Single-end case 
         """        
         zcat ${file_list.join(' ')} | gzip > ${meta.id}.fastq.gz 
@@ -60,10 +60,7 @@ process CONCATENATE_FASTQ {
     }
 
     stub:
-    def file_list = fastq_files instanceof List ? fastq_files : [fastq_files]
-    def has_paired_files = file_list.any { it.name.contains('_1.fastq') || it.name.contains('_2.fastq') || it.name.contains('_R1') || it.name.contains('_R2') }
-    
-    if (!has_paired_files || file_list.size() == 1) {
+    if (!hasPairedReads) {
         """
         touch ${meta.id}.fastq.gz
         """

@@ -36,20 +36,26 @@ workflow RETRIEVE_FROM_SRA {
     // Group back by sample ID and concatenate FASTQ files
     grouped_reads = SRATOOLS_FASTERQDUMP.out.reads
         .map { meta, reads ->
-            [ meta.id, meta, reads ]
+            meta.hasPairedReads = reads.size() == 2
+            return [ meta.id, meta, reads ]
         }
         .groupTuple(by: 0)
         .map { sample_id, metas, read_lists ->
+
+            def firstHasPairedReads = metas[0].hasPairedReads
+            if (!metas.every { it.hasPairedReads == firstHasPairedReads }) {
+                throw new IllegalStateException("SRR samples must be all paird or unpaired.  Mixed results found")
+            }
             // Use the first meta and flatten all reads
             all_reads = read_lists.flatten()
             return [ metas[0], all_reads ]
         }
 
     CONCATENATE_FASTQ(grouped_reads)
-    
+
     // Subsample reads to limit coverage
     SUBSAMPLE_FASTQ(CONCATENATE_FASTQ.out.reads, max_reads)
-    
+
     FORMAT_INPUT_FROM_SRA(SUBSAMPLE_FASTQ.out.reads);
     formatted = FORMAT_INPUT_FROM_SRA.out.samplesheet.collectFile(keepHeader: true, storeDir: params.outDir, name: params.samplesheetName)
 
