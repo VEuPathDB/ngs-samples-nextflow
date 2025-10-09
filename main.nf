@@ -81,19 +81,26 @@ workflow {
         grouped_local_samples = samples.map { row ->
             fasta1 = file(params.input + "/" + row[1]);
             files = [fasta1]
-            
+
+            boolean hasPairedReads = false;
             if(row[2]) {
                 fasta2 = file(params.input + "/" + row[2])
                 files.add(fasta2)
+                boolean hasPairedReads = true;
             }
             
-            return [ row[0], [id: row[0], var1: row[3] ], files ]
+            return [ row[0], [id: row[0], var1: row[3], hasPairedReads: hasPairedReads ], files ]
         }
         .groupTuple(by: 0)
         .map { sample_id, metas, file_lists ->
-            // Flatten the file lists and use the first meta
-            all_files = file_lists.flatten()
-            return [ metas[0], all_files ]
+                def firstHasPairedReads = metas[0].hasPairedReads
+                if (!metas.every { it.hasPairedReads == firstHasPairedReads }) {
+                    throw new IllegalStateException("SRR samples must be all paird or unpaired.  Mixed results found")
+                }
+
+                // Flatten the file lists and use the first meta
+                all_files = file_lists.flatten()
+                return [ metas[0], all_files ]
         }
         
         // Concatenate files if multiple entries per sample
