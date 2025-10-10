@@ -31,7 +31,7 @@ process SUBSAMPLE_FASTQ {
             echo "Subsampling paired-end reads from \$total_reads to ${max_reads}"
             
             # Calculate sampling fraction
-            fraction=\$(awk "BEGIN {printf \"%.10f\", ${max_reads} / \$total_reads}")
+            fraction=\$(awk -v max="${max_reads}" -v total="\$total_reads" 'BEGIN {printf "%.10f", max/total}')  
             
             # Subsample both files with same seed to maintain pairing
             seqtk sample -s ${seed} ${read1} \$fraction | gzip > ${meta.id}_1_subsampled.fastq.gz
@@ -53,8 +53,8 @@ process SUBSAMPLE_FASTQ {
             echo "Subsampling single-end reads from \$total_reads to ${max_reads}"
             
             # Calculate sampling fraction
-            fraction=\$(awk "BEGIN {printf \"%.10f\", ${max_reads} / \$total_reads}")
-            
+            fraction=\$(awk -v max="${max_reads}" -v total="\$total_reads" 'BEGIN {printf "%.10f", max/total}')  
+
             # Subsample the file
             seqtk sample -s ${seed} ${read_file} \$fraction | gzip > ${meta.id}_subsampled.fastq.gz
         else
