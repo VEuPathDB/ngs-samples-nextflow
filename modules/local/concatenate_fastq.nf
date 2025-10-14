@@ -25,7 +25,7 @@ process CONCATENATE_FASTQ {
     if (!meta.hasPairedReads) {
         // Single-end case 
         """        
-        zcat ${file_list.join(' ')} | gzip > ${meta.id}.fastq.gz 
+        zcat ${file_list.join(' ')} | gzip > ${meta.id}_concat.fastq.gz 
         """
     } else {
         // Paired-end: separate R1 and R2 files and concatenate each
@@ -48,13 +48,13 @@ process CONCATENATE_FASTQ {
         
         # Concatenate R1 files if any exist
         if [ \${#r1_files[@]} -gt 0 ]; then
-            zcat "\${r1_files[@]}" | gzip > ${meta.id}_1.fastq.gz
+            zcat "\${r1_files[@]}" | gzip > ${meta.id}_concat_1.fastq.gz
 
         fi
         
         # Concatenate R2 files if any exist  
         if [ \${#r2_files[@]} -gt 0 ]; then
-            zcat "\${r2_files[@]}"  | gzip > ${meta.id}_2.fastq.gz
+            zcat "\${r2_files[@]}"  | gzip > ${meta.id}_concat_2.fastq.gz
         fi
         """
     }
