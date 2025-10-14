@@ -86,7 +86,7 @@ workflow {
             if(row[2]) {
                 fasta2 = file(params.input + "/" + row[2])
                 files.add(fasta2)
-                boolean hasPairedReads = true;
+                hasPairedReads = true;
             }
             
             return [ row[0], [id: row[0], var1: row[3], hasPairedReads: hasPairedReads ], files ]
