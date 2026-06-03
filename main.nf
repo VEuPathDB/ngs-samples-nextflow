@@ -54,6 +54,7 @@ include { RETRIEVE_FROM_SRA       } from './workflows/retrieve_from_sra'
 include { FORMAT_INPUT_FROM_SRA   } from './modules/local/format_input_from_sra'
 include { CONCATENATE_FASTQ       } from './modules/local/concatenate_fastq'
 include { SUBSAMPLE_FASTQ         } from './modules/local/subsample_fastq'
+include { EXPAND_SRX_IDS          } from './modules/local/expand_srx_ids'
 
 workflow {
 
@@ -64,15 +65,22 @@ workflow {
     max_reads = calculateMaxReads(params.assayType, params.genomeSize)
 
     if(params.fromSra) {
-        // Group SRA samples by ID and collect all SRA accessions per sample
-        grouped_sra_samples = samples.map { row ->
-            return [ row[0], [id: row[0], var1: row[3] ], row[1]]
-        }
-        .groupTuple(by: 0)
-        .map { sample_id, metas, sra_ids ->
-            // Use the first meta (they should be the same except for SRA IDs)
-            return [ metas[0], sra_ids ]
-        }
+        // Expand any SRX accessions to their constituent SRR IDs before grouping
+        EXPAND_SRX_IDS(
+            samples.map { row -> [ row[0], row[1], row[3] ?: "" ] }
+        )
+
+        // Re-parse expanded rows and group SRR IDs by sample ID
+        grouped_sra_samples = EXPAND_SRX_IDS.out.rows
+            .splitCsv()
+            .map { row ->
+                return [ row[0], [id: row[0], var1: row[3] ?: ""], row[1] ]
+            }
+            .groupTuple(by: 0)
+            .map { sample_id, metas, sra_ids ->
+                // Use the first meta (they should be the same except for SRA IDs)
+                return [ metas[0], sra_ids ]
+            }
 
         RETRIEVE_FROM_SRA(grouped_sra_samples, max_reads)
     }

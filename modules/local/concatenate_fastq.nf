@@ -6,8 +6,6 @@ process CONCATENATE_FASTQ {
 
     container 'docker.io/veupathdb/alpine_bash:1.0.0'
 
-    publishDir params.outDir, mode: 'copy'
-
     input:
     tuple val(meta), path(fastq_files)
 
