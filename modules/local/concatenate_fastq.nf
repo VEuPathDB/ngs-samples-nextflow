@@ -21,17 +21,20 @@ process CONCATENATE_FASTQ {
     //def has_paired_files = file_list.any { it.name.contains('_1.fastq') || it.name.contains('_2.fastq') || it.name.contains('_R1') || it.name.contains('_R2') }
     
     if (!meta.hasPairedReads) {
-        // Single-end case 
-        """        
-        zcat ${file_list.join(' ')} | gzip > ${meta.id}_concat.fastq.gz 
+        // Single-end case
+        """
+        read_fastq() { [[ \$(xxd -l 2 "\$1" | awk '{print \$2\$3}') == "1f8b"* ]] && zcat "\$1" || cat "\$1"; }
+        { for f in ${file_list.join(' ')}; do read_fastq "\$f"; done } | gzip > ${meta.id}_concat.fastq.gz
         """
     } else {
         // Paired-end: separate R1 and R2 files and concatenate each
         """
+        read_fastq() { [[ \$(xxd -l 2 "\$1" | awk '{print \$2\$3}') == "1f8b"* ]] && zcat "\$1" || cat "\$1"; }
+
         # Create arrays to hold R1 and R2 files
         declare -a r1_files
         declare -a r2_files
-        
+
         # Sort files into R1 and R2 arrays
         for file in ${file_list.join(' ')}; do
             basename_file=\$(basename "\$file")
@@ -43,16 +46,15 @@ process CONCATENATE_FASTQ {
                exit 1
             fi
         done
-        
+
         # Concatenate R1 files if any exist
         if [ \${#r1_files[@]} -gt 0 ]; then
-            zcat "\${r1_files[@]}" | gzip > ${meta.id}_concat_1.fastq.gz
-
+            { for f in "\${r1_files[@]}"; do read_fastq "\$f"; done } | gzip > ${meta.id}_concat_1.fastq.gz
         fi
-        
-        # Concatenate R2 files if any exist  
+
+        # Concatenate R2 files if any exist
         if [ \${#r2_files[@]} -gt 0 ]; then
-            zcat "\${r2_files[@]}"  | gzip > ${meta.id}_concat_2.fastq.gz
+            { for f in "\${r2_files[@]}"; do read_fastq "\$f"; done } | gzip > ${meta.id}_concat_2.fastq.gz
         fi
         """
     }
