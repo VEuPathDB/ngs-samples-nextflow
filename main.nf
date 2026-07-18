@@ -87,12 +87,12 @@ workflow {
     else {
         // Group local file samples by ID and collect all files per sample
         grouped_local_samples = samples.map { row ->
-            fasta1 = file(params.input + "/" + row[1]);
+            fasta1 = file(params.input + "/" + row[1], checkIfExists: true);
             files = [fasta1]
 
             boolean hasPairedReads = false;
             if(row[2]) {
-                fasta2 = file(params.input + "/" + row[2])
+                fasta2 = file(params.input + "/" + row[2], checkIfExists: true)
                 files.add(fasta2)
                 hasPairedReads = true;
             }
