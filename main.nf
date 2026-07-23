@@ -20,16 +20,14 @@ def calculateMaxReads(assayType, genomeSize) {
     def readLength = 150  // Assume 150bp reads
     
     // Set target coverage based on assay type
-    switch(assayType) {
-        case "DNASeq":
-            targetCoverage = 60  // 60x coverage for DNA-seq
-            break
-        case "ChipSeq":
-            targetCoverage = 60  // 60x coverage for Chip-seq
-            break
-        default:
-            targetCoverage = 60  // Default to DNA-seq coverage
-            break
+    if (assayType == "DNASeq") {
+        targetCoverage = 60  // 60x coverage for DNA-seq
+    }
+    else if (assayType == "ChipSeq") {
+        targetCoverage = 60  // 60x coverage for Chip-seq
+    }
+    else {
+        targetCoverage = 60  // Default to DNA-seq coverage
     }
     
     // Calculate number of reads needed: (genome_size * coverage) / read_length
