@@ -67,4 +67,23 @@ nextflow_process {
             assert outFile.linesGzip.size() / 4 == 20000
         }
     }
+
+    test("paired-end single-run input where one filename matches both mate patterns falls through and fails") {
+        when {
+            process {
+                """
+                def ambiguous = new File("${outputDir}", "ambiguous_R1_R2.fastq.gz")
+                ambiguous.bytes = file("${projectDir}/tests/fixtures/mix10.fastq.gz").bytes
+                def nomatch = new File("${outputDir}", "nomatch.fastq.gz")
+                nomatch.bytes = file("${projectDir}/tests/fixtures/mix10.fastq.gz").bytes
+
+                input[0] = [ [id: 'ambig', hasPairedReads: true],
+                    [ file(ambiguous.path), file(nomatch.path) ] ]
+                """
+            }
+        }
+        then {
+            assert process.failed
+        }
+    }
 }

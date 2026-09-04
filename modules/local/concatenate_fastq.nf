@@ -34,7 +34,7 @@ process CONCATENATE_FASTQ {
     if (meta.hasPairedReads && file_list.size() == 2 && all_gzipped) {
         def r1 = file_list.find { it.name.contains('_1.fastq') || it.name.contains('_R1') }
         def r2 = file_list.find { it.name.contains('_2.fastq') || it.name.contains('_R2') }
-        if (r1 && r2) {
+        if (r1 && r2 && r1 != r2) {
             return """
             ln -s ${r1} ${meta.id}_concat_1.fastq.gz
             ln -s ${r2} ${meta.id}_concat_2.fastq.gz
