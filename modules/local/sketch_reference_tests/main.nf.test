@@ -1,0 +1,37 @@
+nextflow_process {
+
+    name "Test Process SKETCH_REFERENCE"
+    script "../sketch_reference.nf"
+    process "SKETCH_REFERENCE"
+    tag "sketch_reference"
+
+    test("sketches a reference and measures genome size") {
+        when {
+            process {
+                """
+                input[0] = file("${projectDir}/tests/fixtures/ref.fasta", checkIfExists: true)
+                """
+            }
+        }
+        then {
+            assert process.success
+            def stats = new groovy.json.JsonSlurper().parseText(
+                file(process.out.stats[0]).text)
+            assert stats.genomeSize == 200000
+            assert file(process.out.sig[0]).size() > 0
+        }
+    }
+
+    test("fails on a file with no FASTA headers") {
+        when {
+            process {
+                """
+                input[0] = file("${projectDir}/tests/fixtures/not_a_fasta.gff", checkIfExists: true)
+                """
+            }
+        }
+        then {
+            assert process.failed
+        }
+    }
+}
