@@ -157,4 +157,115 @@ nextflow_function {
             assert function.result.rawReads == 100000000L
         }
     }
+
+    test("fraction exactly at the plausible threshold is not flagged") {
+        function "depthPlan"
+        when {
+            function {
+                """
+                input[0] = [onTargetFraction: 0.01d, totalReads: 100000000L, readLength: 150, pilotReads: 100000]
+                input[1] = [assayType: 'DNASeq', genomeSize: 33000000L, targetCoverage: 60, minOnTargetFraction: 0.05d, minPlausibleFraction: 0.01d]
+                """
+            }
+        }
+        then {
+            assert function.success
+            assert function.result.flagged == false
+        }
+    }
+
+    test("fraction exactly at the floor is used unchanged") {
+        function "depthPlan"
+        when {
+            function {
+                """
+                input[0] = [onTargetFraction: 0.05d, totalReads: 100000000L, readLength: 150, pilotReads: 100000]
+                input[1] = [assayType: 'DNASeq', genomeSize: 33000000L, targetCoverage: 60, minOnTargetFraction: 0.05d, minPlausibleFraction: 0.01d]
+                """
+            }
+        }
+        then {
+            assert function.success
+            assert function.result.effectiveFraction == 0.05d
+        }
+    }
+
+    test("genome size exactly at the clamp floor is not clamped") {
+        function "depthPlan"
+        when {
+            function {
+                """
+                input[0] = [onTargetFraction: 1.0d, totalReads: 5000000L, readLength: 150, pilotReads: 100000]
+                input[1] = [assayType: 'DNASeq', genomeSize: 2500000L, targetCoverage: 60, minOnTargetFraction: 0.05d, minPlausibleFraction: 0.01d]
+                """
+            }
+        }
+        then {
+            assert function.success
+            assert function.result.targetOnTarget == 1000000L
+        }
+    }
+
+    test("genome size exactly at the clamp ceiling is not clamped") {
+        function "depthPlan"
+        when {
+            function {
+                """
+                input[0] = [onTargetFraction: 1.0d, totalReads: 500000000L, readLength: 150, pilotReads: 100000]
+                input[1] = [assayType: 'DNASeq', genomeSize: 250000000L, targetCoverage: 60, minOnTargetFraction: 0.05d, minPlausibleFraction: 0.01d]
+                """
+            }
+        }
+        then {
+            assert function.success
+            assert function.result.targetOnTarget == 100000000L
+        }
+    }
+
+    test("missing required metrics key fails loudly") {
+        function "depthPlan"
+        when {
+            function {
+                """
+                input[0] = [onTargetFraction: 0.5d, readLength: 150, pilotReads: 100000]
+                input[1] = [assayType: 'DNASeq', genomeSize: 33000000L, targetCoverage: 60, minOnTargetFraction: 0.05d, minPlausibleFraction: 0.01d]
+                """
+            }
+        }
+        then {
+            assert !function.success
+        }
+    }
+
+    test("unrecognized assayType fails loudly") {
+        function "depthPlan"
+        when {
+            function {
+                """
+                input[0] = [onTargetFraction: 0.5d, totalReads: 200000000L, readLength: 150, pilotReads: 100000]
+                input[1] = [assayType: 'RNAseq', genomeSize: 33000000L, targetCoverage: 60, minOnTargetFraction: 0.05d, minPlausibleFraction: 0.01d]
+                """
+            }
+        }
+        then {
+            assert !function.success
+        }
+    }
+
+    test("ChipSeq uses the coverage-based path like DNASeq") {
+        function "depthPlan"
+        when {
+            function {
+                """
+                input[0] = [onTargetFraction: 1.0d, totalReads: 200000000L, readLength: 150, pilotReads: 100000]
+                input[1] = [assayType: 'ChipSeq', genomeSize: 33000000L, targetCoverage: 60, minOnTargetFraction: 0.05d, minPlausibleFraction: 0.01d]
+                """
+            }
+        }
+        then {
+            assert function.success
+            assert function.result.targetOnTarget == 13200000L
+            assert function.result.estimatedCoverage != null
+        }
+    }
 }
