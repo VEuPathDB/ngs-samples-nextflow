@@ -47,6 +47,20 @@ no host genome, no host database, no aligner index.
 genome. `sourmash gather` reports `f_unique_weighted`: the abundance-weighted fraction of the
 pilot's k-mers explained by the reference. That value is the on-target fraction directly.
 
+**`gather` must be run with `--threshold-bp 0`.** The default `--threshold-bp 50000` causes
+gather to exit without writing any result row when overlap is small — precisely the
+low-fraction regime this design exists to handle. Verified against synthetic mixtures with
+sourmash 4.8.14 and a 2.7Mb *L. major* contig, 100k-read pilots:
+
+| True target fraction | default threshold | `--threshold-bp 0` |
+|---|---|---|
+| 10% | 0.1076 | 0.1076 |
+| 1% | 0.0106 | 0.0106 |
+| 0.2% | *no CSV written* | 0.0018 |
+
+Without the flag, a 0.2% sample is silently indistinguishable from a wrong reference FASTA,
+which defeats the `minPlausibleFraction` diagnostic entirely.
+
 Kraken2 with a two-genome database would give per-read classification and identify *what* the
 contaminant is, at the cost of multi-GB resident memory per task. Given the target/host size
 asymmetry and `maxForks = 2`, sourmash is the better trade. The measurement is isolated in
@@ -203,7 +217,8 @@ as the first sample is measured, which is the practical early signal.
 **Degenerate cases, handled rather than crashed:**
 
 - `sourmash gather` with no matches emits an empty result, not an error. The parser returns
-  `0.0`.
+  `0.0`. Because gather runs with `--threshold-bp 0`, an empty result means genuine
+  zero overlap rather than sub-threshold overlap, so `0.0` is trustworthy here.
 - Samples smaller than the pilot size: `seqtk sample` returns everything. `pilotReads` in the
   metrics makes a noisy estimate visible rather than implicit.
 - `totalReads` below the computed ask: no subsampling, symlink passthrough as today.
