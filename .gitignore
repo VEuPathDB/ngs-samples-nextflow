@@ -2,3 +2,7 @@
 .nf-test.log
 test-output/
 .nf-test-*.nf
+.nextflow/
+.nextflow.log*
+ngs-samples-work/
+ngs-samples-output/

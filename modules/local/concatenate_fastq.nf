@@ -82,14 +82,14 @@ process CONCATENATE_FASTQ {
     }
 
     stub:
-    if (!hasPairedReads) {
+    if (!meta.hasPairedReads) {
         """
-        touch ${meta.id}.fastq.gz
+        touch ${meta.id}_concat.fastq.gz
         """
     } else {
         """
-        touch ${meta.id}_1.fastq.gz
-        touch ${meta.id}_2.fastq.gz
+        touch ${meta.id}_concat_1.fastq.gz
+        touch ${meta.id}_concat_2.fastq.gz
         """
     }
 }
