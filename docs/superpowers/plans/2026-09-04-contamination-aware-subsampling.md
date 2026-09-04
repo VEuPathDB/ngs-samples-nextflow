@@ -112,9 +112,13 @@ config {
     testsDir "."
     workDir ".nf-test"
     configFile "tests/nextflow.config"
-    profile "docker"
 }
 ```
+
+**Do not add `profile "docker"`.** Verified during implementation: this repo has no
+`profiles {}` block, so Nextflow fails with `Unknown configuration profile: 'docker'`.
+Docker is already enabled unconditionally via `conf/docker.config`, and again in
+`tests/nextflow.config`.
 
 - [ ] **Step 3: Create the shared test config**
 
@@ -141,8 +145,9 @@ test-output/
 
 - [ ] **Step 5: Verify the runner starts**
 
-Run: `nf-test test --help`
-Expected: usage text, exit 0. (There is nothing to run yet; this only proves the config parses.)
+Run: `nf-test test --dryRun modules/nf-core/sratools/prefetch/tests/main.nf.test`
+Expected: exit 0 with `SUCCESS: Executed 3 tests`. This proves the config parses and the
+runner starts. (Do not use `--help`: nf-test 0.9.5 exits 2 on it.)
 
 - [ ] **Step 6: Commit**
 
@@ -353,7 +358,7 @@ nextflow_function {
 - [ ] **Step 2: Run tests to verify they fail**
 
 ```bash
-export PATH="$HOME/bin:$PATH"
+export PATH="$HOME/bin:$PATH"   # nf-test lives at ~/bin/nf-test; not on non-interactive PATH
 nf-test test modules/local/depth_policy_tests/main.nf.test
 ```
 
