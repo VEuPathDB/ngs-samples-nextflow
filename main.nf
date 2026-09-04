@@ -31,9 +31,9 @@ workflow {
             minOnTargetFraction : params.minOnTargetFraction as double,
             minPlausibleFraction: params.minPlausibleFraction as double
         ]
-    }.first()
+    }
 
-    reference_sig = SKETCH_REFERENCE.out.sig.first()
+    reference_sig = SKETCH_REFERENCE.out.sig
 
     samples = Channel.fromPath(params.input + "/" + params.samplesheetName).splitCsv(skip: 1)
 
