@@ -1,0 +1,70 @@
+nextflow_process {
+
+    name "Test Process CONCATENATE_FASTQ"
+    script "../concatenate_fastq.nf"
+    process "CONCATENATE_FASTQ"
+    tag "concatenate_fastq"
+
+    test("single-end single-file input is passed through without recompression") {
+        when {
+            process {
+                """
+                input[0] = [ [id: 'solo', hasPairedReads: false],
+                    [ file("${projectDir}/tests/fixtures/mix10.fastq.gz", checkIfExists: true) ] ]
+                """
+            }
+        }
+        then {
+            assert process.success
+            def raw = process.out.reads[0][1]
+            def outFiles = raw instanceof List ? raw : [raw]
+            assert outFiles.size() == 1
+            def outFile = file(outFiles[0])
+            assert outFile.name == "solo_concat.fastq.gz"
+            assert outFile.bytes == file("${projectDir}/tests/fixtures/mix10.fastq.gz").bytes
+        }
+    }
+
+    test("paired-end single-run input is passed through without recompression") {
+        when {
+            process {
+                """
+                input[0] = [ [id: 'pair', hasPairedReads: true],
+                    [ file("${projectDir}/tests/fixtures/pair_1.fastq.gz", checkIfExists: true),
+                      file("${projectDir}/tests/fixtures/pair_2.fastq.gz", checkIfExists: true) ] ]
+                """
+            }
+        }
+        then {
+            assert process.success
+            def outFiles = process.out.reads[0][1].collect { file(it) }.sort { it.name }
+            assert outFiles.size() == 2
+            def r1 = outFiles.find { it.name == "pair_concat_1.fastq.gz" }
+            def r2 = outFiles.find { it.name == "pair_concat_2.fastq.gz" }
+            assert r1 != null
+            assert r2 != null
+            assert r1.bytes == file("${projectDir}/tests/fixtures/pair_1.fastq.gz").bytes
+            assert r2.bytes == file("${projectDir}/tests/fixtures/pair_2.fastq.gz").bytes
+        }
+    }
+
+    test("single-end multi-file input is concatenated") {
+        when {
+            process {
+                """
+                input[0] = [ [id: 'multi', hasPairedReads: false],
+                    [ file("${projectDir}/tests/fixtures/mix10.fastq.gz", checkIfExists: true),
+                      file("${projectDir}/tests/fixtures/mix10.fastq.gz", checkIfExists: true) ] ]
+                """
+            }
+        }
+        then {
+            assert process.success
+            def raw = process.out.reads[0][1]
+            def outFiles = raw instanceof List ? raw : [raw]
+            assert outFiles.size() == 1
+            def outFile = path(outFiles[0])
+            assert outFile.linesGzip.size() / 4 == 20000
+        }
+    }
+}

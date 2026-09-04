@@ -53,6 +53,28 @@ print("ref.fasta: %d bp" % REF_LEN)
 print("mix10.fastq.gz: %d target / %d host = %.2f expected fraction"
       % (N_TARGET, N_HOST, N_TARGET / float(N_TARGET + N_HOST)))
 
+# Paired-end fixtures derived from the mix10 read set: same reads, with /1 and /2
+# appended to the read NAME (header line only, not sequence/+/quality). Read back
+# mix10's own lines so the mate files are guaranteed to match it read-for-read.
+# Same mtime/filename pinning as mix10.fastq.gz above for determinism.
+with gzip.open(os.path.join(HERE, "mix10.fastq.gz"), "rb") as f:
+    mix10_lines = f.read().splitlines()
+
+
+def write_mates(path, mate_suffix):
+    with open(path, "wb") as raw:
+        with gzip.GzipFile(filename="", mode="wb", fileobj=raw, mtime=0) as out:
+            for n, line in enumerate(mix10_lines):
+                if n % 4 == 0:
+                    line = line + mate_suffix.encode()
+                out.write(line + b"\n")
+
+
+write_mates(os.path.join(HERE, "pair_1.fastq.gz"), "/1")
+write_mates(os.path.join(HERE, "pair_2.fastq.gz"), "/2")
+
+print("pair_1.fastq.gz / pair_2.fastq.gz: mix10 reads with /1 and /2 mate suffixes")
+
 # gzip of the existing reference, for testing that SKETCH_REFERENCE accepts
 # gzipped FASTA input. Same mtime/filename pinning as mix10.fastq.gz above.
 with open(os.path.join(HERE, "ref.fasta.gz"), "wb") as raw:

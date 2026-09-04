@@ -7,7 +7,7 @@ process CONCATENATE_FASTQ {
     container 'docker.io/veupathdb/alpine_bash:1.0.0'
 
     input:
-    tuple val(meta), path(fastq_files)
+    tuple val(meta), path(fastq_files, stageAs: "?/*")
 
     output:
     tuple val(meta), path("${meta.id}*.fastq.gz"), emit: reads
@@ -19,7 +19,29 @@ process CONCATENATE_FASTQ {
     // Check if we have only single files or if this is mixed single/paired
     def file_list = fastq_files instanceof List ? fastq_files : [fastq_files]
     //def has_paired_files = file_list.any { it.name.contains('_1.fastq') || it.name.contains('_2.fastq') || it.name.contains('_R1') || it.name.contains('_R2') }
-    
+
+    // A single already-gzipped run needs no merging; symlinking avoids a pointless
+    // decompress/recompress cycle at the pipeline's peak-disk step. Guarded so a malformed
+    // sample (paired flag but only one file) falls through to the real concatenation path.
+    def all_gzipped = file_list.every { it.name.endsWith('.gz') }
+
+    if (!meta.hasPairedReads && file_list.size() == 1 && all_gzipped) {
+        return """
+        ln -s ${file_list[0]} ${meta.id}_concat.fastq.gz
+        """
+    }
+
+    if (meta.hasPairedReads && file_list.size() == 2 && all_gzipped) {
+        def r1 = file_list.find { it.name.contains('_1.fastq') || it.name.contains('_R1') }
+        def r2 = file_list.find { it.name.contains('_2.fastq') || it.name.contains('_R2') }
+        if (r1 && r2) {
+            return """
+            ln -s ${r1} ${meta.id}_concat_1.fastq.gz
+            ln -s ${r2} ${meta.id}_concat_2.fastq.gz
+            """
+        }
+    }
+
     if (!meta.hasPairedReads) {
         // Single-end case
         """
