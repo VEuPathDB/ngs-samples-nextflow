@@ -676,6 +676,26 @@ git add modules/local/sketch_reference.nf modules/local/sketch_reference_tests/m
 git commit -m "feat: add SKETCH_REFERENCE with FASTA validation"
 ```
 
+**AMENDED DURING IMPLEMENTATION (commit `fea9168`).** The validation specified above is
+insufficient; the shipped version differs. `A`, `C`, `G`, `T`, `N` are all valid amino-acid
+codes, so a protein FASTA clears both the header check and the 1000-base floor and yields a
+fabricated genome size. The shipped process therefore:
+
+- Checks strict-ACGTN as a **ratio** (>= 90%) of total alphabetic sequence characters, not an
+  absolute floor. IUPAC ambiguity codes are deliberately EXCLUDED from this ratio — they are
+  also amino-acid codes, so including them lets protein score ~70% and defeats the check.
+- Counts `ACGTNRYSWKMBDHV` for the reported `genomeSize` only — a deliberately different
+  character set from the composition gate.
+- Reads gzipped FASTA via a `case`-selected `zcat`/`cat`. sourmash reads `.gz` natively
+  (verified against the container).
+- Guards the sequence-line `grep -v` so a headers-only FASTA emits its intended diagnostic
+  instead of a raw grep error under `pipefail`.
+- Captures sequence lines to a temp file rather than a shell variable, so a multi-GB genome
+  is not held in memory as one string.
+
+Tests: 5 total. Added protein rejection (the fixture measures 24% ACGTN), headers-only, and
+gzipped input.
+
 ---
 
 ## Task 5: MEASURE_SAMPLE
