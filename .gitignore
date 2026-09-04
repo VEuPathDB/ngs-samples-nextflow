@@ -1,3 +1,4 @@
 .nf-test/
 .nf-test.log
 test-output/
+.nf-test-*.nf
