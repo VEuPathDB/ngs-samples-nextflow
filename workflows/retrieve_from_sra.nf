@@ -19,6 +19,9 @@ workflow RETRIEVE_FROM_SRA {
 
     grouped_reads = SRATOOLS_FASTERQDUMP.out.reads
         .map { meta, reads ->
+            if (reads.size() != 1 && reads.size() != 2) {
+                throw new IllegalStateException("Sample ${meta.id}: fasterq-dump produced ${reads.size()} files; expected 1 (single-end) or 2 (paired). A 3-file split indicates unpaired reads mixed with pairs, which this pipeline cannot currently concatenate safely.")
+            }
             meta.hasPairedReads = reads.size() == 2
             return [ meta.id, meta, reads ]
         }
