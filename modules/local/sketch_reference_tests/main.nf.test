@@ -34,4 +34,53 @@ nextflow_process {
             assert process.failed
         }
     }
+
+    test("rejects a protein FASTA") {
+        when {
+            process {
+                """
+                input[0] = file("${projectDir}/tests/fixtures/protein.fasta", checkIfExists: true)
+                """
+            }
+        }
+        then {
+            assert process.failed
+            def err = process.errorReport
+            assert err.contains("%")
+            assert err.toLowerCase().contains("protein")
+        }
+    }
+
+    test("reports a clear error for a FASTA with no sequence lines") {
+        when {
+            process {
+                """
+                input[0] = file("${projectDir}/tests/fixtures/headers_only.fasta", checkIfExists: true)
+                """
+            }
+        }
+        then {
+            assert process.failed
+            def err = process.errorReport
+            assert !err.toLowerCase().contains("grep:")
+            assert err.contains("nucleotide")
+        }
+    }
+
+    test("sketches a gzipped reference") {
+        when {
+            process {
+                """
+                input[0] = file("${projectDir}/tests/fixtures/ref.fasta.gz", checkIfExists: true)
+                """
+            }
+        }
+        then {
+            assert process.success
+            def stats = new groovy.json.JsonSlurper().parseText(
+                file(process.out.stats[0]).text)
+            assert stats.genomeSize == 200000
+            assert file(process.out.sig[0]).size() > 0
+        }
+    }
 }

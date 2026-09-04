@@ -52,3 +52,37 @@ with open(os.path.join(HERE, "mix10.fastq.gz"), "wb") as raw:
 print("ref.fasta: %d bp" % REF_LEN)
 print("mix10.fastq.gz: %d target / %d host = %.2f expected fraction"
       % (N_TARGET, N_HOST, N_TARGET / float(N_TARGET + N_HOST)))
+
+# gzip of the existing reference, for testing that SKETCH_REFERENCE accepts
+# gzipped FASTA input. Same mtime/filename pinning as mix10.fastq.gz above.
+with open(os.path.join(HERE, "ref.fasta.gz"), "wb") as raw:
+    with gzip.GzipFile(filename="", mode="wb", fileobj=raw, mtime=0) as out:
+        with open(os.path.join(HERE, "ref.fasta"), "rb") as ref_in:
+            out.write(ref_in.read())
+
+print("ref.fasta.gz: gzip of ref.fasta")
+
+# A protein FASTA, long enough to clear the old (pre-fix) 1000-character floor.
+# A/C/G/T/N are all valid amino acid codes, so random protein sequence still
+# has ~20-25% "nucleotide-looking" characters by chance - this is the fixture
+# that proves the composition-ratio check (not just a length floor) is needed.
+AA_ALPHABET = "ACDEFGHIKLMNPQRSTVWY"
+PROTEIN_LEN = 5000
+
+protein_seq = "".join(random.choice(AA_ALPHABET) for _ in range(PROTEIN_LEN))
+
+with open(os.path.join(HERE, "protein.fasta"), "w") as out:
+    out.write(">synthetic_protein length=%d\n" % PROTEIN_LEN)
+    for i in range(0, PROTEIN_LEN, 60):
+        out.write(protein_seq[i:i + 60] + "\n")
+
+print("protein.fasta: %d aa" % PROTEIN_LEN)
+
+# Headers only, no sequence lines at all - exercises the guard around the
+# genome-size grep, which otherwise dies on grep -v finding zero matches.
+with open(os.path.join(HERE, "headers_only.fasta"), "w") as out:
+    out.write(">seq1 description one\n")
+    out.write(">seq2 description two\n")
+    out.write(">seq3 description three\n")
+
+print("headers_only.fasta: 3 headers, no sequence")
