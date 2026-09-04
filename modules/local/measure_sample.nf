@@ -58,6 +58,11 @@ process MEASURE_SAMPLE {
     ')
     read total_reads pilot_reads read_length <<< "\$stats"
 
+    if [ "\$total_reads" -eq 0 ]; then
+        echo "ERROR: sample ${meta.id} contains zero reads. Check the input FASTQ is not empty or truncated." >&2
+        exit 1
+    fi
+
     # Assumes meta.id contains no single quotes/shell metacharacters; it comes straight from
     # the input samplesheet column and is not sanitized upstream (see main.nf CSV parsing).
     sourmash sketch dna -p k=31,scaled=1000,abund --name '${meta.id}' pilot.fastq -o pilot.sig

@@ -252,6 +252,81 @@ nextflow_function {
         }
     }
 
+    test("zero readLength fails loudly instead of dividing by zero") {
+        function "depthPlan"
+        when {
+            function {
+                """
+                input[0] = [onTargetFraction: 0.5d, totalReads: 200000000L, readLength: 0, pilotReads: 100000]
+                input[1] = [assayType: 'DNASeq', genomeSize: 33000000L, targetCoverage: 60, minOnTargetFraction: 0.05d, minPlausibleFraction: 0.01d]
+                """
+            }
+        }
+        then {
+            assert !function.success
+        }
+    }
+
+    test("zero totalReads fails loudly instead of dividing by zero") {
+        function "depthPlan"
+        when {
+            function {
+                """
+                input[0] = [onTargetFraction: 0.5d, totalReads: 0L, readLength: 150, pilotReads: 100000]
+                input[1] = [assayType: 'DNASeq', genomeSize: 33000000L, targetCoverage: 60, minOnTargetFraction: 0.05d, minPlausibleFraction: 0.01d]
+                """
+            }
+        }
+        then {
+            assert !function.success
+        }
+    }
+
+    test("onTargetFraction above 1.0 fails loudly") {
+        function "depthPlan"
+        when {
+            function {
+                """
+                input[0] = [onTargetFraction: 1.5d, totalReads: 200000000L, readLength: 150, pilotReads: 100000]
+                input[1] = [assayType: 'DNASeq', genomeSize: 33000000L, targetCoverage: 60, minOnTargetFraction: 0.05d, minPlausibleFraction: 0.01d]
+                """
+            }
+        }
+        then {
+            assert !function.success
+        }
+    }
+
+    test("onTargetFraction below 0.0 fails loudly") {
+        function "depthPlan"
+        when {
+            function {
+                """
+                input[0] = [onTargetFraction: -0.1d, totalReads: 200000000L, readLength: 150, pilotReads: 100000]
+                input[1] = [assayType: 'DNASeq', genomeSize: 33000000L, targetCoverage: 60, minOnTargetFraction: 0.05d, minPlausibleFraction: 0.01d]
+                """
+            }
+        }
+        then {
+            assert !function.success
+        }
+    }
+
+    test("minOnTargetFraction of 0.0 fails loudly") {
+        function "depthPlan"
+        when {
+            function {
+                """
+                input[0] = [onTargetFraction: 0.5d, totalReads: 200000000L, readLength: 150, pilotReads: 100000]
+                input[1] = [assayType: 'DNASeq', genomeSize: 33000000L, targetCoverage: 60, minOnTargetFraction: 0.0d, minPlausibleFraction: 0.01d]
+                """
+            }
+        }
+        then {
+            assert !function.success
+        }
+    }
+
     test("ChipSeq uses the coverage-based path like DNASeq") {
         function "depthPlan"
         when {

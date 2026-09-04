@@ -98,3 +98,20 @@ coverage after alignment.
 
 If `sample_metrics.csv` shows every sample flagged, `--referenceFasta` is almost certainly not
 the organism the reads came from.
+
+**Paired-end coverage runs about 2x higher than requested.** `total_reads` counts read
+*pairs*, but coverage is credited using one read length per pair, so paired-end samples
+retain roughly double the coverage that `--targetCoverage` implies. This is a known
+limitation, not a bug to work around — plan paired-end depth expectations accordingly.
+
+**The 1M/100M read bounds clamp the on-target target, not the output file size.** They
+bound `targetOnTarget` — the number of *on-target* reads the pipeline aims for — before
+that target is inflated by the on-target fraction to decide how many raw reads to keep.
+As a result, actual retained reads are usually well above the 1M floor: a sample at 12%
+on-target hitting the 1M floor still retains ~8.3M raw reads. Retained reads *can* fall
+below 1M, but only because `raw_reads_used` is capped at the reads a sample actually has —
+never because of the floor itself. In practice the floor rarely activates: it only kicks in
+when `genomeSize * targetCoverage / readLength` drops under 1,000,000, roughly a genome
+under 2.5Mb at the default 60x/150bp settings. Typical VEuPathDB targets sit well above that —
+P. falciparum (~23Mb) needs ~9.2M on-target reads and L. major (~33Mb) needs ~13.2M, both
+far clear of the floor.

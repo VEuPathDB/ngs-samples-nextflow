@@ -28,6 +28,27 @@ def targetOnTargetReads(Map policy) {
 }
 
 def depthPlan(Map metrics, Map policy) {
+    if (metrics.readLength == null || (metrics.readLength as double) <= 0) {
+        throw new IllegalArgumentException(
+            "Invalid metrics.readLength '${metrics.readLength}'; must be greater than 0"
+        )
+    }
+    if (metrics.totalReads == null || (metrics.totalReads as double) <= 0) {
+        throw new IllegalArgumentException(
+            "Invalid metrics.totalReads '${metrics.totalReads}'; must be greater than 0"
+        )
+    }
+    if (metrics.onTargetFraction == null || (metrics.onTargetFraction as double) < 0.0d || (metrics.onTargetFraction as double) > 1.0d) {
+        throw new IllegalArgumentException(
+            "Invalid metrics.onTargetFraction '${metrics.onTargetFraction}'; must be within [0.0, 1.0]"
+        )
+    }
+    if (policy.minOnTargetFraction == null || (policy.minOnTargetFraction as double) <= 0.0d) {
+        throw new IllegalArgumentException(
+            "Invalid policy.minOnTargetFraction '${policy.minOnTargetFraction}'; must be greater than 0.0"
+        )
+    }
+
     def policyWithReadLength = policy + [readLength: metrics.readLength]
     long targetOnTarget = targetOnTargetReads(policyWithReadLength)
 
