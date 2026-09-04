@@ -485,9 +485,12 @@ for i in range(N_HOST):
 
 random.shuffle(reads)
 
-with gzip.open(os.path.join(HERE, "mix10.fastq.gz"), "wt") as out:
-    for name, seq in reads:
-        out.write("@%s\n%s\n+\n%s\n" % (name, seq, "I" * len(seq)))
+# gzip.open embeds the current mtime and filename in its header, which would make the
+# output non-deterministic across runs. Pin both so regenerating produces identical bytes.
+with open(os.path.join(HERE, "mix10.fastq.gz"), "wb") as raw:
+    with gzip.GzipFile(filename="", mode="wb", fileobj=raw, mtime=0) as out:
+        for name, seq in reads:
+            out.write(("@%s\n%s\n+\n%s\n" % (name, seq, "I" * len(seq))).encode())
 
 print("ref.fasta: %d bp" % REF_LEN)
 print("mix10.fastq.gz: %d target / %d host = %.2f expected fraction"
@@ -518,6 +521,11 @@ rm -f tests/fixtures/*.sig tests/fixtures/gather.csv
 
 Expected: a CSV row whose `f_unique_weighted` is between 0.08 and 0.13. If it is not, the
 fixture is wrong and the estimator test built on it will be meaningless — stop and fix it.
+Do not widen the band to make it pass.
+
+Measured during implementation: **0.11503**. (Higher than the 0.10 mixing ratio because a
+150bp read contributes 120 distinct 31-mers while the reference is sketched at
+`scaled=1000`; the weighting is over retained hashes, not reads.)
 
 - [ ] **Step 4: Commit**
 
