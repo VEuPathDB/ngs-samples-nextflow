@@ -1,0 +1,70 @@
+nextflow_process {
+
+    name "Test Process SUBSAMPLE_FASTQ"
+    script "../subsample_fastq.nf"
+    process "SUBSAMPLE_FASTQ"
+    tag "subsample_fastq"
+
+    test("cuts to the requested number of reads") {
+        when {
+            process {
+                """
+                input[0] = Channel.of([ [id: 'cut', hasPairedReads: false],
+                    file("${projectDir}/tests/fixtures/mix10.fastq.gz", checkIfExists: true),
+                    2000L, 10000L ])
+                """
+            }
+        }
+        then {
+            assert process.success
+            def out = path(process.out.reads[0][1] instanceof List
+                ? process.out.reads[0][1][0] : process.out.reads[0][1])
+            def n = out.linesGzip.size() / 4
+            assert n > 1800 && n < 2200
+        }
+    }
+
+    test("passes through untouched when target exceeds available reads") {
+        when {
+            process {
+                """
+                input[0] = Channel.of([ [id: 'keep', hasPairedReads: false],
+                    file("${projectDir}/tests/fixtures/mix10.fastq.gz", checkIfExists: true),
+                    50000L, 10000L ])
+                """
+            }
+        }
+        then {
+            assert process.success
+            def out = path(process.out.reads[0][1] instanceof List
+                ? process.out.reads[0][1][0] : process.out.reads[0][1])
+            assert out.linesGzip.size() / 4 == 10000
+        }
+    }
+
+    test("maintains pairing when subsampling paired-end reads") {
+        when {
+            process {
+                """
+                input[0] = Channel.of([ [id: 'cutpair', hasPairedReads: true],
+                    [ file("${projectDir}/tests/fixtures/pair_1.fastq.gz", checkIfExists: true),
+                      file("${projectDir}/tests/fixtures/pair_2.fastq.gz", checkIfExists: true) ],
+                    2000L, 10000L ])
+                """
+            }
+        }
+        then {
+            assert process.success
+            def outFiles = process.out.reads[0][1].collect { file(it) }.sort { it.name }
+            assert outFiles.size() == 2
+            def r1 = outFiles.find { it.name == "cutpair_1_subsampled.fastq.gz" }
+            def r2 = outFiles.find { it.name == "cutpair_2_subsampled.fastq.gz" }
+            assert r1 != null
+            assert r2 != null
+            def n1 = path(r1.path).linesGzip.size() / 4
+            def n2 = path(r2.path).linesGzip.size() / 4
+            assert n1 > 1800 && n1 < 2200
+            assert n1 == n2
+        }
+    }
+}
