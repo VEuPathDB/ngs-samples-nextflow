@@ -37,4 +37,33 @@ nextflow_process {
             assert m.onTargetFraction < 0.13
         }
     }
+
+    test("reports zero on-target for reads unrelated to the reference") {
+        setup {
+            run("SKETCH_REFERENCE") {
+                script "../sketch_reference.nf"
+                process {
+                    """
+                    input[0] = file("${projectDir}/tests/fixtures/ref.fasta", checkIfExists: true)
+                    """
+                }
+            }
+        }
+        when {
+            params { pilotSize = 100000 }
+            process {
+                """
+                input[0] = Channel.of([ [id: 'norelation'],
+                    file("${projectDir}/tests/fixtures/norelation.fastq.gz", checkIfExists: true) ])
+                input[1] = SKETCH_REFERENCE.out.sig
+                """
+            }
+        }
+        then {
+            assert process.success
+            def m = new groovy.json.JsonSlurper().parseText(
+                file(process.out.metrics[0][1]).text)
+            assert m.onTargetFraction == 0.0
+        }
+    }
 }

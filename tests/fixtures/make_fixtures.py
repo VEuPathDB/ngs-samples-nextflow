@@ -108,3 +108,21 @@ with open(os.path.join(HERE, "headers_only.fasta"), "w") as out:
     out.write(">seq3 description three\n")
 
 print("headers_only.fasta: 3 headers, no sequence")
+
+# Reads with no relationship to ref.fasta at all, for the genuine-zero-overlap
+# MEASURE_SAMPLE test. Pure random sequence shares no k=31 mers with ref by
+# chance (same reasoning as the host reads in mix10 above). Appended last so
+# it doesn't perturb the random stream any earlier fixture depends on.
+NORELATION_N = 2000
+
+norelation_reads = []
+for i in range(NORELATION_N):
+    seq = "".join(random.choice("ACGT") for _ in range(READ_LEN))
+    norelation_reads.append(("norel_%d" % i, seq))
+
+with open(os.path.join(HERE, "norelation.fastq.gz"), "wb") as raw:
+    with gzip.GzipFile(filename="", mode="wb", fileobj=raw, mtime=0) as out:
+        for name, seq in norelation_reads:
+            out.write(("@%s\n%s\n+\n%s\n" % (name, seq, "I" * len(seq))).encode())
+
+print("norelation.fastq.gz: %d reads, no relation to ref.fasta" % NORELATION_N)
