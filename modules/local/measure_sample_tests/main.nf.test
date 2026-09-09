@@ -1,0 +1,102 @@
+nextflow_process {
+
+    name "Test Process MEASURE_SAMPLE"
+    script "../measure_sample.nf"
+    process "MEASURE_SAMPLE"
+    tag "measure_sample"
+
+    test("estimates a known 10 percent mixture") {
+        setup {
+            run("SKETCH_REFERENCE") {
+                script "../sketch_reference.nf"
+                process {
+                    """
+                    input[0] = file("${projectDir}/tests/fixtures/ref.fasta", checkIfExists: true)
+                    """
+                }
+            }
+        }
+        when {
+            params { pilotSize = 100000 }
+            process {
+                """
+                input[0] = Channel.of([ [id: 'mix10'],
+                    file("${projectDir}/tests/fixtures/mix10.fastq.gz", checkIfExists: true) ])
+                input[1] = SKETCH_REFERENCE.out.sig
+                """
+            }
+        }
+        then {
+            assert process.success
+            def m = new groovy.json.JsonSlurper().parseText(
+                file(process.out.metrics[0][1]).text)
+            assert m.totalReads == 10000
+            assert m.readLength == 150
+            assert m.pilotReads == 10000
+            assert m.onTargetFraction > 0.08
+            assert m.onTargetFraction < 0.13
+        }
+    }
+
+    test("exercises the reservoir sampling path with a pilot size smaller than total reads") {
+        setup {
+            run("SKETCH_REFERENCE") {
+                script "../sketch_reference.nf"
+                process {
+                    """
+                    input[0] = file("${projectDir}/tests/fixtures/ref.fasta", checkIfExists: true)
+                    """
+                }
+            }
+        }
+        when {
+            params { pilotSize = 1000 }
+            process {
+                """
+                input[0] = Channel.of([ [id: 'mix10'],
+                    file("${projectDir}/tests/fixtures/mix10.fastq.gz", checkIfExists: true) ])
+                input[1] = SKETCH_REFERENCE.out.sig
+                """
+            }
+        }
+        then {
+            assert process.success
+            def m = new groovy.json.JsonSlurper().parseText(
+                file(process.out.metrics[0][1]).text)
+            assert m.totalReads == 10000
+            assert m.pilotReads == 1000
+            assert m.readLength == 150
+            assert m.onTargetFraction > 0.05
+            assert m.onTargetFraction < 0.20
+        }
+    }
+
+    test("reports zero on-target for reads unrelated to the reference") {
+        setup {
+            run("SKETCH_REFERENCE") {
+                script "../sketch_reference.nf"
+                process {
+                    """
+                    input[0] = file("${projectDir}/tests/fixtures/ref.fasta", checkIfExists: true)
+                    """
+                }
+            }
+        }
+        when {
+            params { pilotSize = 100000 }
+            process {
+                """
+                input[0] = Channel.of([ [id: 'norelation'],
+                    file("${projectDir}/tests/fixtures/norelation.fastq.gz", checkIfExists: true) ])
+                input[1] = SKETCH_REFERENCE.out.sig
+                """
+            }
+        }
+        then {
+            assert process.success
+            def m = new groovy.json.JsonSlurper().parseText(
+                file(process.out.metrics[0][1]).text)
+            assert m.onTargetFraction == 0.0
+        }
+    }
+}

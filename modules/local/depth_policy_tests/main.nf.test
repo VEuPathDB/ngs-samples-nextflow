@@ -1,0 +1,461 @@
+nextflow_function {
+
+    name "Test depth policy"
+    script "../depth_policy.nf"
+    tag "depth_policy"
+
+    test("clean sample retains close to the on-target target") {
+        function "depthPlan"
+        when {
+            function {
+                """
+                input[0] = [onTargetFraction: 0.95d, totalReads: 200000000L, readLength: 150, mateCount: 1, pilotReads: 100000]
+                input[1] = [assayType: 'DNASeq', genomeSize: 33000000L, targetCoverage: 60, minOnTargetFraction: 0.05d, minPlausibleFraction: 0.01d]
+                """
+            }
+        }
+        then {
+            assert function.success
+            assert function.result.targetOnTargetFragments == 13200000L
+            assert function.result.rawFragments == 13894737L
+            assert function.result.flagged == false
+        }
+    }
+
+    test("15 percent target inflates the raw ask by the fraction") {
+        function "depthPlan"
+        when {
+            function {
+                """
+                input[0] = [onTargetFraction: 0.15d, totalReads: 200000000L, readLength: 150, mateCount: 1, pilotReads: 100000]
+                input[1] = [assayType: 'DNASeq', genomeSize: 33000000L, targetCoverage: 60, minOnTargetFraction: 0.05d, minPlausibleFraction: 0.01d]
+                """
+            }
+        }
+        then {
+            assert function.success
+            assert function.result.rawFragments == 88000000L
+            assert function.result.flagged == false
+        }
+    }
+
+    test("fraction below the floor is clamped to the floor") {
+        function "depthPlan"
+        when {
+            function {
+                """
+                input[0] = [onTargetFraction: 0.02d, totalReads: 500000000L, readLength: 150, mateCount: 1, pilotReads: 100000]
+                input[1] = [assayType: 'DNASeq', genomeSize: 33000000L, targetCoverage: 60, minOnTargetFraction: 0.05d, minPlausibleFraction: 0.01d]
+                """
+            }
+        }
+        then {
+            assert function.success
+            assert function.result.effectiveFraction == 0.05d
+            assert function.result.rawFragments == 264000000L
+        }
+    }
+
+    test("raw ask never exceeds the fragments actually available") {
+        function "depthPlan"
+        when {
+            function {
+                """
+                input[0] = [onTargetFraction: 0.02d, totalReads: 100000000L, readLength: 150, mateCount: 1, pilotReads: 100000]
+                input[1] = [assayType: 'DNASeq', genomeSize: 33000000L, targetCoverage: 60, minOnTargetFraction: 0.05d, minPlausibleFraction: 0.01d]
+                """
+            }
+        }
+        then {
+            assert function.success
+            assert function.result.rawFragments == 100000000L
+        }
+    }
+
+    test("fraction below the plausible threshold is flagged") {
+        function "depthPlan"
+        when {
+            function {
+                """
+                input[0] = [onTargetFraction: 0.005d, totalReads: 100000000L, readLength: 150, mateCount: 1, pilotReads: 100000]
+                input[1] = [assayType: 'DNASeq', genomeSize: 33000000L, targetCoverage: 60, minOnTargetFraction: 0.05d, minPlausibleFraction: 0.01d]
+                """
+            }
+        }
+        then {
+            assert function.success
+            assert function.result.flagged == true
+        }
+    }
+
+    test("zero fraction is flagged and does not divide by zero") {
+        function "depthPlan"
+        when {
+            function {
+                """
+                input[0] = [onTargetFraction: 0.0d, totalReads: 100000000L, readLength: 150, mateCount: 1, pilotReads: 100000]
+                input[1] = [assayType: 'DNASeq', genomeSize: 33000000L, targetCoverage: 60, minOnTargetFraction: 0.05d, minPlausibleFraction: 0.01d]
+                """
+            }
+        }
+        then {
+            assert function.success
+            assert function.result.flagged == true
+            assert function.result.rawFragments == 100000000L
+            assert function.result.estimatedCoverage == 0.0d
+        }
+    }
+
+    test("RNASeq uses a fixed fragment target and reports no coverage") {
+        function "depthPlan"
+        when {
+            function {
+                """
+                input[0] = [onTargetFraction: 0.5d, totalReads: 200000000L, readLength: 150, mateCount: 1, pilotReads: 100000]
+                input[1] = [assayType: 'RNASeq', genomeSize: 33000000L, targetCoverage: 60, minOnTargetFraction: 0.05d, minPlausibleFraction: 0.01d]
+                """
+            }
+        }
+        then {
+            assert function.success
+            assert function.result.targetOnTargetFragments == 20000000L
+            assert function.result.rawFragments == 40000000L
+            assert function.result.estimatedCoverage == null
+        }
+    }
+
+    test("tiny genome clamps up to the one million fragment floor") {
+        function "depthPlan"
+        when {
+            function {
+                """
+                input[0] = [onTargetFraction: 1.0d, totalReads: 5000000L, readLength: 150, mateCount: 1, pilotReads: 100000]
+                input[1] = [assayType: 'DNASeq', genomeSize: 1000000L, targetCoverage: 60, minOnTargetFraction: 0.05d, minPlausibleFraction: 0.01d]
+                """
+            }
+        }
+        then {
+            assert function.success
+            assert function.result.targetOnTargetFragments == 1000000L
+            assert function.result.rawFragments == 1000000L
+        }
+    }
+
+    test("huge genome clamps down to the hundred million fragment ceiling") {
+        function "depthPlan"
+        when {
+            function {
+                """
+                input[0] = [onTargetFraction: 1.0d, totalReads: 500000000L, readLength: 150, mateCount: 1, pilotReads: 100000]
+                input[1] = [assayType: 'DNASeq', genomeSize: 1000000000L, targetCoverage: 60, minOnTargetFraction: 0.05d, minPlausibleFraction: 0.01d]
+                """
+            }
+        }
+        then {
+            assert function.success
+            assert function.result.targetOnTargetFragments == 100000000L
+            assert function.result.rawFragments == 100000000L
+        }
+    }
+
+    test("fraction exactly at the plausible threshold is not flagged") {
+        function "depthPlan"
+        when {
+            function {
+                """
+                input[0] = [onTargetFraction: 0.01d, totalReads: 100000000L, readLength: 150, mateCount: 1, pilotReads: 100000]
+                input[1] = [assayType: 'DNASeq', genomeSize: 33000000L, targetCoverage: 60, minOnTargetFraction: 0.05d, minPlausibleFraction: 0.01d]
+                """
+            }
+        }
+        then {
+            assert function.success
+            assert function.result.flagged == false
+        }
+    }
+
+    test("fraction exactly at the floor is used unchanged") {
+        function "depthPlan"
+        when {
+            function {
+                """
+                input[0] = [onTargetFraction: 0.05d, totalReads: 100000000L, readLength: 150, mateCount: 1, pilotReads: 100000]
+                input[1] = [assayType: 'DNASeq', genomeSize: 33000000L, targetCoverage: 60, minOnTargetFraction: 0.05d, minPlausibleFraction: 0.01d]
+                """
+            }
+        }
+        then {
+            assert function.success
+            assert function.result.effectiveFraction == 0.05d
+        }
+    }
+
+    test("genome size exactly at the clamp floor is not clamped") {
+        function "depthPlan"
+        when {
+            function {
+                """
+                input[0] = [onTargetFraction: 1.0d, totalReads: 5000000L, readLength: 150, mateCount: 1, pilotReads: 100000]
+                input[1] = [assayType: 'DNASeq', genomeSize: 2500000L, targetCoverage: 60, minOnTargetFraction: 0.05d, minPlausibleFraction: 0.01d]
+                """
+            }
+        }
+        then {
+            assert function.success
+            assert function.result.targetOnTargetFragments == 1000000L
+        }
+    }
+
+    test("genome size exactly at the clamp ceiling is not clamped") {
+        function "depthPlan"
+        when {
+            function {
+                """
+                input[0] = [onTargetFraction: 1.0d, totalReads: 500000000L, readLength: 150, mateCount: 1, pilotReads: 100000]
+                input[1] = [assayType: 'DNASeq', genomeSize: 250000000L, targetCoverage: 60, minOnTargetFraction: 0.05d, minPlausibleFraction: 0.01d]
+                """
+            }
+        }
+        then {
+            assert function.success
+            assert function.result.targetOnTargetFragments == 100000000L
+        }
+    }
+
+    test("missing required metrics key fails loudly") {
+        function "depthPlan"
+        when {
+            function {
+                """
+                input[0] = [onTargetFraction: 0.5d, readLength: 150, mateCount: 1, pilotReads: 100000]
+                input[1] = [assayType: 'DNASeq', genomeSize: 33000000L, targetCoverage: 60, minOnTargetFraction: 0.05d, minPlausibleFraction: 0.01d]
+                """
+            }
+        }
+        then {
+            assert !function.success
+        }
+    }
+
+    test("unrecognized assayType fails loudly") {
+        function "depthPlan"
+        when {
+            function {
+                """
+                input[0] = [onTargetFraction: 0.5d, totalReads: 200000000L, readLength: 150, mateCount: 1, pilotReads: 100000]
+                input[1] = [assayType: 'RNAseq', genomeSize: 33000000L, targetCoverage: 60, minOnTargetFraction: 0.05d, minPlausibleFraction: 0.01d]
+                """
+            }
+        }
+        then {
+            assert !function.success
+        }
+    }
+
+    test("zero readLength fails loudly instead of dividing by zero") {
+        function "depthPlan"
+        when {
+            function {
+                """
+                input[0] = [onTargetFraction: 0.5d, totalReads: 200000000L, readLength: 0, mateCount: 1, pilotReads: 100000]
+                input[1] = [assayType: 'DNASeq', genomeSize: 33000000L, targetCoverage: 60, minOnTargetFraction: 0.05d, minPlausibleFraction: 0.01d]
+                """
+            }
+        }
+        then {
+            assert !function.success
+        }
+    }
+
+    test("zero totalReads fails loudly instead of dividing by zero") {
+        function "depthPlan"
+        when {
+            function {
+                """
+                input[0] = [onTargetFraction: 0.5d, totalReads: 0L, readLength: 150, mateCount: 1, pilotReads: 100000]
+                input[1] = [assayType: 'DNASeq', genomeSize: 33000000L, targetCoverage: 60, minOnTargetFraction: 0.05d, minPlausibleFraction: 0.01d]
+                """
+            }
+        }
+        then {
+            assert !function.success
+        }
+    }
+
+    test("onTargetFraction above 1.0 fails loudly") {
+        function "depthPlan"
+        when {
+            function {
+                """
+                input[0] = [onTargetFraction: 1.5d, totalReads: 200000000L, readLength: 150, mateCount: 1, pilotReads: 100000]
+                input[1] = [assayType: 'DNASeq', genomeSize: 33000000L, targetCoverage: 60, minOnTargetFraction: 0.05d, minPlausibleFraction: 0.01d]
+                """
+            }
+        }
+        then {
+            assert !function.success
+        }
+    }
+
+    test("onTargetFraction below 0.0 fails loudly") {
+        function "depthPlan"
+        when {
+            function {
+                """
+                input[0] = [onTargetFraction: -0.1d, totalReads: 200000000L, readLength: 150, mateCount: 1, pilotReads: 100000]
+                input[1] = [assayType: 'DNASeq', genomeSize: 33000000L, targetCoverage: 60, minOnTargetFraction: 0.05d, minPlausibleFraction: 0.01d]
+                """
+            }
+        }
+        then {
+            assert !function.success
+        }
+    }
+
+    test("minOnTargetFraction of 0.0 fails loudly") {
+        function "depthPlan"
+        when {
+            function {
+                """
+                input[0] = [onTargetFraction: 0.5d, totalReads: 200000000L, readLength: 150, mateCount: 1, pilotReads: 100000]
+                input[1] = [assayType: 'DNASeq', genomeSize: 33000000L, targetCoverage: 60, minOnTargetFraction: 0.0d, minPlausibleFraction: 0.01d]
+                """
+            }
+        }
+        then {
+            assert !function.success
+        }
+    }
+
+    test("ChipSeq uses a fixed fragment target and reports no coverage") {
+        function "depthPlan"
+        when {
+            function {
+                """
+                input[0] = [onTargetFraction: 1.0d, totalReads: 200000000L, readLength: 150, mateCount: 1, pilotReads: 100000]
+                input[1] = [assayType: 'ChipSeq', genomeSize: 33000000L, targetCoverage: 60, minOnTargetFraction: 0.05d, minPlausibleFraction: 0.01d]
+                """
+            }
+        }
+        then {
+            assert function.success
+            assert function.result.targetOnTargetFragments == 30000000L
+            assert function.result.estimatedCoverage == null
+        }
+    }
+
+    test("ChipSeq target ignores genome size") {
+        function "depthPlan"
+        when {
+            function {
+                """
+                input[0] = [onTargetFraction: 1.0d, totalReads: 500000000L, readLength: 150, mateCount: 2, pilotReads: 100000]
+                input[1] = [assayType: 'ChipSeq', genomeSize: 1000000000L, targetCoverage: 60, minOnTargetFraction: 0.05d, minPlausibleFraction: 0.01d]
+                """
+            }
+        }
+        then {
+            assert function.success
+            assert function.result.targetOnTargetFragments == 30000000L
+        }
+    }
+
+    test("ChipSeq inflates the raw ask by the on-target fraction") {
+        function "depthPlan"
+        when {
+            function {
+                """
+                input[0] = [onTargetFraction: 0.5d, totalReads: 200000000L, readLength: 150, mateCount: 2, pilotReads: 100000]
+                input[1] = [assayType: 'ChipSeq', genomeSize: 33000000L, targetCoverage: 60, minOnTargetFraction: 0.05d, minPlausibleFraction: 0.01d]
+                """
+            }
+        }
+        then {
+            assert function.success
+            assert function.result.rawFragments == 60000000L
+        }
+    }
+
+    test("paired-end needs half the fragments of single-end at the same coverage") {
+        function "depthPlan"
+        when {
+            function {
+                """
+                input[0] = [onTargetFraction: 1.0d, totalReads: 200000000L, readLength: 150, mateCount: 2, pilotReads: 100000]
+                input[1] = [assayType: 'DNASeq', genomeSize: 33000000L, targetCoverage: 60, minOnTargetFraction: 0.05d, minPlausibleFraction: 0.01d]
+                """
+            }
+        }
+        then {
+            assert function.success
+            assert function.result.targetOnTargetFragments == 6600000L
+            assert function.result.rawFragments == 6600000L
+        }
+    }
+
+    test("paired-end coverage estimate counts both mates") {
+        function "depthPlan"
+        when {
+            function {
+                """
+                input[0] = [onTargetFraction: 0.84588367518966d, totalReads: 6122422L, readLength: 101, mateCount: 2, pilotReads: 100000]
+                input[1] = [assayType: 'DNASeq', genomeSize: 23332839L, targetCoverage: 60, minOnTargetFraction: 0.05d, minPlausibleFraction: 0.01d]
+                """
+            }
+        }
+        then {
+            assert function.success
+            assert function.result.targetOnTargetFragments == 6930546L
+            assert function.result.rawFragments == 6122422L
+            assert Math.abs(function.result.estimatedCoverage - 44.835053211023734d) < 1e-9
+        }
+    }
+
+    test("RNASeq target is a fragment count regardless of mateCount") {
+        function "depthPlan"
+        when {
+            function {
+                """
+                input[0] = [onTargetFraction: 0.5d, totalReads: 200000000L, readLength: 150, mateCount: 2, pilotReads: 100000]
+                input[1] = [assayType: 'RNASeq', genomeSize: 33000000L, targetCoverage: 60, minOnTargetFraction: 0.05d, minPlausibleFraction: 0.01d]
+                """
+            }
+        }
+        then {
+            assert function.success
+            assert function.result.targetOnTargetFragments == 20000000L
+            assert function.result.rawFragments == 40000000L
+            assert function.result.estimatedCoverage == null
+        }
+    }
+
+    test("missing mateCount fails loudly rather than assuming single-end") {
+        function "depthPlan"
+        when {
+            function {
+                """
+                input[0] = [onTargetFraction: 0.5d, totalReads: 200000000L, readLength: 150, pilotReads: 100000]
+                input[1] = [assayType: 'DNASeq', genomeSize: 33000000L, targetCoverage: 60, minOnTargetFraction: 0.05d, minPlausibleFraction: 0.01d]
+                """
+            }
+        }
+        then {
+            assert !function.success
+        }
+    }
+
+    test("mateCount outside one or two fails loudly") {
+        function "depthPlan"
+        when {
+            function {
+                """
+                input[0] = [onTargetFraction: 0.5d, totalReads: 200000000L, readLength: 150, mateCount: 3, pilotReads: 100000]
+                input[1] = [assayType: 'DNASeq', genomeSize: 33000000L, targetCoverage: 60, minOnTargetFraction: 0.05d, minPlausibleFraction: 0.01d]
+                """
+            }
+        }
+        then {
+            assert !function.success
+        }
+    }
+}

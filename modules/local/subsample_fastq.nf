@@ -6,9 +6,10 @@ process SUBSAMPLE_FASTQ {
 
     publishDir params.outDir, mode: 'copy'
 
+    // Both counts are fragments (R1 records), so their ratio is the per-file sampling
+    // fraction for single- and paired-end alike. One seed keeps mates in step.
     input:
-    tuple val(meta), path(reads)
-    val max_reads
+    tuple val(meta), path(reads), val(target_fragments), val(total_fragments)
 
     output:
     tuple val(meta), path("${meta.id}*_subsampled.fastq.gz"), emit: reads
@@ -17,58 +18,33 @@ process SUBSAMPLE_FASTQ {
     task.ext.when == null || task.ext.when
 
     script:
-    def is_paired = reads instanceof List && reads.size() == 2
-    def seed = 42  // Fixed seed for reproducibility
-    
-    if (is_paired) {
-        def read1 = reads[0]
-        def read2 = reads[1]
+    def seed = 42
+    def read_list = reads instanceof List ? reads : [reads]
+
+    if (meta.hasPairedReads) {
         """
-        # Count reads in first file to determine if subsampling is needed
-        total_reads=\$(( \$(zcat ${read1} | wc -l) / 4 ))
-        
-        if [ \$total_reads -gt ${max_reads} ]; then
-            echo "Subsampling paired-end reads from \$total_reads to ${max_reads}"
-            
-            # Calculate sampling fraction
-            fraction=\$(awk -v max="${max_reads}" -v total="\$total_reads" 'BEGIN {printf "%.10f", max/total}')  
-            
-            # Subsample both files with same seed to maintain pairing
-            seqtk sample -s ${seed} ${read1} \$fraction | gzip > ${meta.id}_1_subsampled.fastq.gz
-            seqtk sample -s ${seed} ${read2} \$fraction | gzip > ${meta.id}_2_subsampled.fastq.gz
+        if [ ${total_fragments} -gt ${target_fragments} ]; then
+            fraction=\$(awk -v t="${target_fragments}" -v n="${total_fragments}" 'BEGIN {printf "%.10f", t/n}')
+            seqtk sample -s ${seed} ${read_list[0]} \$fraction | gzip > ${meta.id}_1_subsampled.fastq.gz
+            seqtk sample -s ${seed} ${read_list[1]} \$fraction | gzip > ${meta.id}_2_subsampled.fastq.gz
         else
-            echo "No subsampling needed. Total reads (\$total_reads) <= max reads (${max_reads})"
-            # Create symlinks with subsampled naming for consistency
-            ln -s ${read1} ${meta.id}_1_subsampled.fastq.gz
-            ln -s ${read2} ${meta.id}_2_subsampled.fastq.gz
+            ln -s ${read_list[0]} ${meta.id}_1_subsampled.fastq.gz
+            ln -s ${read_list[1]} ${meta.id}_2_subsampled.fastq.gz
         fi
         """
     } else {
-        def read_file = reads instanceof List ? reads[0] : reads
         """
-        # Count reads to determine if subsampling is needed
-        total_reads=\$(( \$(zcat ${read_file} | wc -l) / 4 ))
-        
-        if [ \$total_reads -gt ${max_reads} ]; then
-            echo "Subsampling single-end reads from \$total_reads to ${max_reads}"
-            
-            # Calculate sampling fraction
-            fraction=\$(awk -v max="${max_reads}" -v total="\$total_reads" 'BEGIN {printf "%.10f", max/total}')  
-
-            # Subsample the file
-            seqtk sample -s ${seed} ${read_file} \$fraction | gzip > ${meta.id}_subsampled.fastq.gz
+        if [ ${total_fragments} -gt ${target_fragments} ]; then
+            fraction=\$(awk -v t="${target_fragments}" -v n="${total_fragments}" 'BEGIN {printf "%.10f", t/n}')
+            seqtk sample -s ${seed} ${read_list[0]} \$fraction | gzip > ${meta.id}_subsampled.fastq.gz
         else
-            echo "No subsampling needed. Total reads (\$total_reads) <= max reads (${max_reads})"
-            # Create symlink with subsampled naming for consistency
-            ln -s ${read_file} ${meta.id}_subsampled.fastq.gz
+            ln -s ${read_list[0]} ${meta.id}_subsampled.fastq.gz
         fi
         """
     }
 
     stub:
-    def is_paired = reads instanceof List && reads.size() == 2
-    
-    if (is_paired) {
+    if (meta.hasPairedReads) {
         """
         touch ${meta.id}_1_subsampled.fastq.gz
         touch ${meta.id}_2_subsampled.fastq.gz

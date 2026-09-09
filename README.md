@@ -21,6 +21,7 @@ nextflow run VEuPathDB/ngs-samples-nextflow -r main \
   --fromSra true \
   --input /path/to/samplesheet_dir \
   --outDir /path/to/output \
+  --referenceFasta /path/to/target_organism.fasta \
   -resume -C <config>
 
 # Prepare samples from local FASTQ files
@@ -28,8 +29,12 @@ nextflow run VEuPathDB/ngs-samples-nextflow -r main \
   --fromSra false \
   --input /path/to/samplesheet_dir \
   --outDir /path/to/output \
+  --referenceFasta /path/to/target_organism.fasta \
   -resume -C <config>
 ```
+
+`--referenceFasta` is required on every run and is validated before any process is
+submitted.
 
 ### Input samplesheet
 
@@ -55,15 +60,60 @@ sample2,data/sample2_R1.fastq.gz,data/sample2_R2.fastq.gz,treatment
 | `--samplesheetName` | Samplesheet filename within `--input` (default `samplesheet.csv`) |
 | `--fromSra` | `true` to download reads from SRA, `false` to use local FASTQ files (default `true`) |
 | `--outDir` | Output directory for the processed FASTQs and final samplesheet |
-| `--assayType` | `DNASeq`, `RNASeq`, or `ChipSeq` — determines the read-subsampling target (default `DNASeq`) |
-| `--genomeSize` | Genome size in base pairs, used to calculate the DNASeq/ChipSeq read cap (default `3000000000`, human) |
+| `--referenceFasta` | **Required.** Target organism FASTA. Genome size is measured from it and it is used to estimate each sample's on-target fraction. Gzipped FASTA is accepted |
+| `--assayType` | `DNASeq`, `RNASeq`, or `ChipSeq` — determines the read-subsampling target (default `DNASeq`). Unrecognized values fail loudly |
+| `--targetCoverage` | Coverage target for DNASeq only (default `60`). RNASeq targets a fixed 20M on-target fragments, ChipSeq 30M — the higher figure reflects broad histone marks |
+| `--minOnTargetFraction` | Fraction floor, which doubles as the inflation cap — never retain more than `1/minOnTargetFraction` times a clean sample's requirement (default `0.05`) |
+| `--minPlausibleFraction` | Below this a sample is flagged in `sample_metrics.csv` (default `0.01`). Low fractions are expected for host-dominated samples; a whole batch flagged may instead mean the wrong `--referenceFasta` |
+| `--pilotSize` | Reads drawn per sample to estimate on-target fraction (default `100000`) |
 | `--maxDownloadSize` | Maximum SRA run size `prefetch` will download (default `50G`); raise if prefetch skips a run for exceeding sra-tools' default 20G limit |
 
-Read subsampling is calculated automatically: RNASeq samples are capped at a fixed 20,000,000 reads, while DNASeq/ChipSeq samples are capped at `genomeSize * 60x coverage / 150bp read length`, bounded between 1,000,000 and 100,000,000 reads. Subsampling uses `seqtk sample` with a fixed seed for reproducibility, preserving read pairing for paired-end data.
+`--genomeSize` and `--maxReads` have been removed. Genome size is now measured from
+`--referenceFasta`, and the raw-read target is always derived from the measured on-target
+fraction rather than set manually. See "Contamination-aware subsampling" below.
 
-## Output
+## Outputs
 
 The pipeline publishes to `--outDir`:
 
-- Per-sample subsampled FASTQ file(s) — `{sample}_subsampled.fastq.gz` (single-end) or `{sample}_1_subsampled.fastq.gz` / `{sample}_2_subsampled.fastq.gz` (paired-end)
-- A formatted samplesheet (named per `--samplesheetName`) with absolute paths to the processed FASTQ files, ready for downstream pipelines
+- `samplesheet.csv` — `sample,fastq_1,fastq_2,var1`. This contract is stable; downstream
+  workflows can rely on the column set.
+- `sample_metrics.csv` — per-sample measurements:
+  `sample,on_target_fraction,total_fragments,raw_fragments_used,estimated_coverage,read_length,mate_count,pilot_reads,flagged`.
+  Counts are *fragments* (read pairs for paired-end data), matching `mate_count`.
+  `estimated_coverage` is genome-relative and is left empty for RNASeq and ChipSeq, where the depth
+  target is a fixed fragment count. It can also legitimately read far below `--targetCoverage`
+  when a sample simply doesn't contain enough reads to reach the target — `raw_fragments_used`
+  is capped at the reads actually available, so a low figure there can mean "small sample"
+  rather than "sequencing failure".
+- Subsampled FASTQ files — `{sample}_subsampled.fastq.gz` (single-end) or
+  `{sample}_1_subsampled.fastq.gz` / `{sample}_2_subsampled.fastq.gz` (paired-end)
+
+## Contamination-aware subsampling
+
+Subsampling targets *on-target* reads, not raw reads. Each sample's on-target fraction is
+estimated from a pilot draw of reads using k-mer containment against `--referenceFasta`, and
+the number of raw reads retained is inflated by that fraction. A sample that is 15% target
+therefore retains ~6.7x more raw reads than a clean one, and both reach the requested
+coverage after alignment.
+
+A low on-target fraction is expected wherever the parasite is sequenced out of host tissue,
+so flagged samples are routine rather than an error. If *every* sample in a batch is flagged
+and host contamination doesn't explain it, check that `--referenceFasta` is the right organism.
+
+**Paired-end data is counted in fragments.** `total_fragments` counts read *pairs*, and a
+pair contributes `read_length * mate_count` bases, so coverage and depth targets are both
+computed per fragment. A paired-end sample therefore needs half the fragments of a
+single-end one to reach the same `--targetCoverage`.
+
+**The 1M/100M fragment bounds clamp the on-target target, not the output file size.** They
+bound `targetOnTargetFragments` — the number of *on-target* fragments the pipeline aims for —
+before that target is inflated by the on-target fraction to decide how many raw reads to keep.
+As a result, actual retained reads are usually well above the 1M floor: a sample at 12%
+on-target hitting the 1M floor still retains ~8.3M raw reads. Retained reads *can* fall
+below 1M, but only because `raw_fragments_used` is capped at the reads a sample actually has —
+never because of the floor itself. In practice the floor rarely activates: it only kicks in
+when `genomeSize * targetCoverage / (readLength * mateCount)` drops under 1,000,000 — a genome
+under ~2.5Mb single-end, or ~5Mb paired, at the default 60x/150bp settings. Typical VEuPathDB
+targets sit well above that: paired 150bp at 60x, P. falciparum (~23Mb) needs ~4.7M on-target
+fragments and L. major (~33Mb) needs ~6.6M, both far clear of the floor.
