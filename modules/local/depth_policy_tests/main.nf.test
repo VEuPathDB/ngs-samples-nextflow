@@ -339,7 +339,7 @@ nextflow_function {
         }
         then {
             assert function.success
-            assert function.result.targetOnTargetFragments == 20000000L
+            assert function.result.targetOnTargetFragments == 30000000L
             assert function.result.estimatedCoverage == null
         }
     }
@@ -356,7 +356,7 @@ nextflow_function {
         }
         then {
             assert function.success
-            assert function.result.targetOnTargetFragments == 20000000L
+            assert function.result.targetOnTargetFragments == 30000000L
         }
     }
 
@@ -372,7 +372,7 @@ nextflow_function {
         }
         then {
             assert function.success
-            assert function.result.rawFragments == 40000000L
+            assert function.result.rawFragments == 60000000L
         }
     }
 

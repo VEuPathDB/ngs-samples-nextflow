@@ -19,9 +19,12 @@ import groovy.transform.Field
 // so these targets need no pairing adjustment. RNA-seq depth scales with transcriptome
 // complexity; ChIP-seq depth accrues under peaks. Neither scales with genome size, which
 // is why running them through the coverage path below would use the wrong axis.
+// ChIP-seq sits higher than RNA-seq because these libraries are predominantly broad
+// histone marks, which need more depth to separate domain enrichment from background
+// than a point-source factor does.
 @Field final Map FIXED_FRAGMENT_TARGETS = [
     RNASeq : 20000000L,
-    ChipSeq: 20000000L,
+    ChipSeq: 30000000L,
 ]
 
 @Field final List VALID_ASSAY_TYPES = ["DNASeq", "RNASeq", "ChipSeq"]

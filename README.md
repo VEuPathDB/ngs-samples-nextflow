@@ -62,7 +62,7 @@ sample2,data/sample2_R1.fastq.gz,data/sample2_R2.fastq.gz,treatment
 | `--outDir` | Output directory for the processed FASTQs and final samplesheet |
 | `--referenceFasta` | **Required.** Target organism FASTA. Genome size is measured from it and it is used to estimate each sample's on-target fraction. Gzipped FASTA is accepted |
 | `--assayType` | `DNASeq`, `RNASeq`, or `ChipSeq` — determines the read-subsampling target (default `DNASeq`). Unrecognized values fail loudly |
-| `--targetCoverage` | Coverage target for DNASeq only (default `60`). RNASeq and ChipSeq use a fixed 20M on-target fragment target |
+| `--targetCoverage` | Coverage target for DNASeq only (default `60`). RNASeq targets a fixed 20M on-target fragments, ChipSeq 30M — the higher figure reflects broad histone marks |
 | `--minOnTargetFraction` | Fraction floor, which doubles as the inflation cap — never retain more than `1/minOnTargetFraction` times a clean sample's requirement (default `0.05`) |
 | `--minPlausibleFraction` | Below this a sample is flagged in `sample_metrics.csv` (default `0.01`). Low fractions are expected for host-dominated samples; a whole batch flagged may instead mean the wrong `--referenceFasta` |
 | `--pilotSize` | Reads drawn per sample to estimate on-target fraction (default `100000`) |
