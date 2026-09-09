@@ -7,8 +7,6 @@ include { PREPARE_SAMPLES   } from './workflows/prepare_samples'
 include { SKETCH_REFERENCE  } from './modules/local/sketch_reference'
 include { EXPAND_SRX_IDS    } from './modules/local/expand_srx_ids'
 
-def sampleFlags = Collections.synchronizedList([])
-
 workflow {
 
     if (!params.referenceFasta) {
@@ -47,7 +45,6 @@ workflow {
             .map { sample_id, metas, sra_ids -> [ metas[0], sra_ids ] }
 
         RETRIEVE_FROM_SRA(grouped_sra_samples, reference_sig, policy)
-        RETRIEVE_FROM_SRA.out.flags.subscribe { sampleFlags << it }
     }
     else {
         grouped_local_samples = samples.map { row ->
@@ -69,15 +66,5 @@ workflow {
             }
 
         PREPARE_SAMPLES(grouped_local_samples, reference_sig, policy)
-        PREPARE_SAMPLES.out.flags.subscribe { sampleFlags << it }
-    }
-}
-
-workflow.onComplete {
-    if (sampleFlags && sampleFlags.every { it }) {
-        log.error "All ${sampleFlags.size()} samples fell below minPlausibleFraction " +
-                  "(${params.minPlausibleFraction}). This usually means --referenceFasta " +
-                  "(${params.referenceFasta}) is not the organism these reads came from. " +
-                  "Check ${params.outDir}/sample_metrics.csv."
     }
 }

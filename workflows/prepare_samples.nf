@@ -35,8 +35,9 @@ workflow PREPARE_SAMPLES {
             def plan = depthPlan(metrics, policyMap)
             if (plan.flagged) {
                 log.warn "Sample ${id}: on-target fraction ${metrics.onTargetFraction} is below " +
-                         "minPlausibleFraction (${policyMap.minPlausibleFraction}). If every sample " +
-                         "is flagged, check that --referenceFasta is the right organism."
+                         "minPlausibleFraction (${policyMap.minPlausibleFraction}). Expected for " +
+                         "host-dominated samples; if every sample is low, check that " +
+                         "--referenceFasta is the right organism."
             }
             return [ meta, reads, metrics, plan ]
         }
@@ -68,5 +69,4 @@ workflow PREPARE_SAMPLES {
     emit:
     formattedInput = formatted
     sampleMetrics  = metrics_csv
-    flags          = plans.map { meta, reads, metrics, plan -> plan.flagged }
 }

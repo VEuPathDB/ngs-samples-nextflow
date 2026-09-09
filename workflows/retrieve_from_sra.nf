@@ -38,5 +38,4 @@ workflow RETRIEVE_FROM_SRA {
 
     emit:
     formattedInput = PREPARE_SAMPLES.out.formattedInput
-    flags          = PREPARE_SAMPLES.out.flags
 }
