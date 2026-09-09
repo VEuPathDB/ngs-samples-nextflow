@@ -15,9 +15,14 @@ import groovy.transform.Field
 @Field final long MIN_TARGET_FRAGMENTS = 1000000L
 @Field final long MAX_TARGET_FRAGMENTS = 100000000L
 
-// RNA-seq depth is quoted in fragments, not bases, so this target needs no pairing
-// adjustment — unlike the coverage path below, which reasons in bases.
-@Field final long RNASEQ_TARGET_FRAGMENTS = 20000000L
+// Assays whose depth is quoted as a flat fragment count rather than genome coverage,
+// so these targets need no pairing adjustment. RNA-seq depth scales with transcriptome
+// complexity; ChIP-seq depth accrues under peaks. Neither scales with genome size, which
+// is why running them through the coverage path below would use the wrong axis.
+@Field final Map FIXED_FRAGMENT_TARGETS = [
+    RNASeq : 20000000L,
+    ChipSeq: 20000000L,
+]
 
 @Field final List VALID_ASSAY_TYPES = ["DNASeq", "RNASeq", "ChipSeq"]
 
@@ -27,8 +32,8 @@ def targetOnTargetFragments(Map policy) {
             "Unrecognized assayType '${policy.assayType}'; valid values are ${VALID_ASSAY_TYPES}"
         )
     }
-    if (policy.assayType == "RNASeq") {
-        return RNASEQ_TARGET_FRAGMENTS
+    if (FIXED_FRAGMENT_TARGETS.containsKey(policy.assayType)) {
+        return FIXED_FRAGMENT_TARGETS[policy.assayType]
     }
     // Truncate rather than round: a deliberately conservative (never over-) estimate.
     long raw = (long) ((policy.genomeSize * policy.targetCoverage) / policy.basesPerFragment)
@@ -76,7 +81,7 @@ def depthPlan(Map metrics, Map policy) {
         metrics.totalReads as long
     )
 
-    Double estimatedCoverage = policy.assayType == "RNASeq"
+    Double estimatedCoverage = FIXED_FRAGMENT_TARGETS.containsKey(policy.assayType)
         ? null
         : (rawFragments * observed * basesPerFragment) / (policy.genomeSize as double)
 

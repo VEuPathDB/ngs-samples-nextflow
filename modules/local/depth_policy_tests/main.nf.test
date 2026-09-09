@@ -327,7 +327,7 @@ nextflow_function {
         }
     }
 
-    test("ChipSeq uses the coverage-based path like DNASeq") {
+    test("ChipSeq uses a fixed fragment target and reports no coverage") {
         function "depthPlan"
         when {
             function {
@@ -339,8 +339,40 @@ nextflow_function {
         }
         then {
             assert function.success
-            assert function.result.targetOnTargetFragments == 13200000L
-            assert function.result.estimatedCoverage != null
+            assert function.result.targetOnTargetFragments == 20000000L
+            assert function.result.estimatedCoverage == null
+        }
+    }
+
+    test("ChipSeq target ignores genome size") {
+        function "depthPlan"
+        when {
+            function {
+                """
+                input[0] = [onTargetFraction: 1.0d, totalReads: 500000000L, readLength: 150, mateCount: 2, pilotReads: 100000]
+                input[1] = [assayType: 'ChipSeq', genomeSize: 1000000000L, targetCoverage: 60, minOnTargetFraction: 0.05d, minPlausibleFraction: 0.01d]
+                """
+            }
+        }
+        then {
+            assert function.success
+            assert function.result.targetOnTargetFragments == 20000000L
+        }
+    }
+
+    test("ChipSeq inflates the raw ask by the on-target fraction") {
+        function "depthPlan"
+        when {
+            function {
+                """
+                input[0] = [onTargetFraction: 0.5d, totalReads: 200000000L, readLength: 150, mateCount: 2, pilotReads: 100000]
+                input[1] = [assayType: 'ChipSeq', genomeSize: 33000000L, targetCoverage: 60, minOnTargetFraction: 0.05d, minPlausibleFraction: 0.01d]
+                """
+            }
+        }
+        then {
+            assert function.success
+            assert function.result.rawFragments == 40000000L
         }
     }
 
