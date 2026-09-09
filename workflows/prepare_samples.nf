@@ -27,7 +27,11 @@ workflow PREPARE_SAMPLES {
         .join(metrics_by_id)
         .combine(policy)
         .map { id, meta, reads, json, policyMap ->
-            def metrics = new groovy.json.JsonSlurper().parse(json.toFile())
+            // MEASURE_SAMPLE counts R1 records only, so its totalReads is a fragment
+            // count and carries no mate information. hasPairedReads is the same field that
+            // decided the staged file layout, so it is the authority on mate count here.
+            def metrics = new groovy.json.JsonSlurper().parse(json.toFile()) +
+                          [ mateCount: meta.hasPairedReads ? 2 : 1 ]
             def plan = depthPlan(metrics, policyMap)
             if (plan.flagged) {
                 log.warn "Sample ${id}: on-target fraction ${metrics.onTargetFraction} is below " +
@@ -38,7 +42,7 @@ workflow PREPARE_SAMPLES {
         }
 
     SUBSAMPLE_FASTQ(
-        plans.map { meta, reads, metrics, plan -> [ meta, reads, plan.rawReads, metrics.totalReads ] }
+        plans.map { meta, reads, metrics, plan -> [ meta, reads, plan.rawFragments, metrics.totalReads ] }
     )
 
     FORMAT_INPUT_FROM_SRA(SUBSAMPLE_FASTQ.out.reads)
@@ -46,16 +50,17 @@ workflow PREPARE_SAMPLES {
     formatted = FORMAT_INPUT_FROM_SRA.out.samplesheet
         .collectFile(keepHeader: true, storeDir: params.outDir, name: params.samplesheetName)
 
-    metrics_header = "sample,on_target_fraction,total_reads,raw_reads_used," +
-                     "estimated_coverage,read_length,pilot_reads,flagged\n"
+    metrics_header = "sample,on_target_fraction,total_fragments,raw_fragments_used," +
+                     "estimated_coverage,read_length,mate_count,pilot_reads,flagged\n"
 
     metrics_csv = plans
         .map { meta, reads, metrics, plan ->
             def coverage = plan.estimatedCoverage == null
                 ? ''
                 : String.format('%.2f', plan.estimatedCoverage)
-            "${meta.id},${metrics.onTargetFraction},${metrics.totalReads},${plan.rawReads}," +
-            "${coverage},${metrics.readLength},${metrics.pilotReads},${plan.flagged}\n"
+            "${meta.id},${metrics.onTargetFraction},${metrics.totalReads},${plan.rawFragments}," +
+            "${coverage},${metrics.readLength},${metrics.mateCount},${metrics.pilotReads}," +
+            "${plan.flagged}\n"
         }
         .collectFile(name: 'sample_metrics.csv', storeDir: params.outDir,
                      seed: metrics_header, sort: true)
