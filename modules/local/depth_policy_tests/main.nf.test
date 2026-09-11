@@ -327,36 +327,116 @@ nextflow_function {
         }
     }
 
-    test("ChipSeq uses a fixed fragment target and reports no coverage") {
-        function "depthPlan"
-        when {
-            function {
-                """
-                input[0] = [onTargetFraction: 1.0d, totalReads: 200000000L, readLength: 150, mateCount: 1, pilotReads: 100000]
-                input[1] = [assayType: 'ChipSeq', genomeSize: 33000000L, targetCoverage: 60, minOnTargetFraction: 0.05d, minPlausibleFraction: 0.01d]
-                """
-            }
-        }
-        then {
-            assert function.success
-            assert function.result.targetOnTargetFragments == 30000000L
-            assert function.result.estimatedCoverage == null
-        }
-    }
-
-    test("ChipSeq target ignores genome size") {
+    test("ChipSeq holds at the floor for a small parasite genome") {
         function "depthPlan"
         when {
             function {
                 """
                 input[0] = [onTargetFraction: 1.0d, totalReads: 500000000L, readLength: 150, mateCount: 2, pilotReads: 100000]
-                input[1] = [assayType: 'ChipSeq', genomeSize: 1000000000L, targetCoverage: 60, minOnTargetFraction: 0.05d, minPlausibleFraction: 0.01d]
+                input[1] = [assayType: 'ChipSeq', genomeSize: 23332839L, targetCoverage: 60, minOnTargetFraction: 0.05d, minPlausibleFraction: 0.01d]
                 """
             }
         }
         then {
             assert function.success
-            assert function.result.targetOnTargetFragments == 30000000L
+            assert function.result.targetOnTargetFragments == 20000000L
+            assert function.result.estimatedCoverage == null
+        }
+    }
+
+    test("ChipSeq holds at the floor at fly scale") {
+        function "depthPlan"
+        when {
+            function {
+                """
+                input[0] = [onTargetFraction: 1.0d, totalReads: 500000000L, readLength: 150, mateCount: 2, pilotReads: 100000]
+                input[1] = [assayType: 'ChipSeq', genomeSize: 180000000L, targetCoverage: 60, minOnTargetFraction: 0.05d, minPlausibleFraction: 0.01d]
+                """
+            }
+        }
+        then {
+            assert function.success
+            assert function.result.targetOnTargetFragments == 20000000L
+        }
+    }
+
+    test("ChipSeq scales above the floor for a large vector genome") {
+        function "depthPlan"
+        when {
+            function {
+                """
+                input[0] = [onTargetFraction: 1.0d, totalReads: 500000000L, readLength: 150, mateCount: 2, pilotReads: 100000]
+                input[1] = [assayType: 'ChipSeq', genomeSize: 1280000000L, targetCoverage: 60, minOnTargetFraction: 0.05d, minPlausibleFraction: 0.01d]
+                """
+            }
+        }
+        then {
+            assert function.success
+            assert function.result.targetOnTargetFragments == 21908902L
+        }
+    }
+
+    test("ChipSeq scales above the floor for a mammalian genome") {
+        function "depthPlan"
+        when {
+            function {
+                """
+                input[0] = [onTargetFraction: 1.0d, totalReads: 500000000L, readLength: 150, mateCount: 2, pilotReads: 100000]
+                input[1] = [assayType: 'ChipSeq', genomeSize: 3100000000L, targetCoverage: 60, minOnTargetFraction: 0.05d, minPlausibleFraction: 0.01d]
+                """
+            }
+        }
+        then {
+            assert function.success
+            assert function.result.targetOnTargetFragments == 34095454L
+        }
+    }
+
+    test("ChipSeq doubling the genome multiplies the target by root two") {
+        function "depthPlan"
+        when {
+            function {
+                """
+                input[0] = [onTargetFraction: 1.0d, totalReads: 500000000L, readLength: 150, mateCount: 2, pilotReads: 100000]
+                input[1] = [assayType: 'ChipSeq', genomeSize: 2000000000L, targetCoverage: 60, minOnTargetFraction: 0.05d, minPlausibleFraction: 0.01d]
+                """
+            }
+        }
+        then {
+            assert function.success
+            assert function.result.targetOnTargetFragments == 27386127L
+        }
+    }
+
+    test("ChipSeq at four billion bases confirms the square-root exponent") {
+        function "depthPlan"
+        when {
+            function {
+                """
+                input[0] = [onTargetFraction: 1.0d, totalReads: 500000000L, readLength: 150, mateCount: 2, pilotReads: 100000]
+                input[1] = [assayType: 'ChipSeq', genomeSize: 4000000000L, targetCoverage: 60, minOnTargetFraction: 0.05d, minPlausibleFraction: 0.01d]
+                """
+            }
+        }
+        then {
+            assert function.success
+            assert function.result.targetOnTargetFragments == 38729833L
+        }
+    }
+
+    test("ChipSeq clamps at the hundred million fragment ceiling") {
+        function "depthPlan"
+        when {
+            function {
+                """
+                input[0] = [onTargetFraction: 1.0d, totalReads: 500000000L, readLength: 150, mateCount: 2, pilotReads: 100000]
+                input[1] = [assayType: 'ChipSeq', genomeSize: 30000000000L, targetCoverage: 60, minOnTargetFraction: 0.05d, minPlausibleFraction: 0.01d]
+                """
+            }
+        }
+        then {
+            assert function.success
+            assert function.result.targetOnTargetFragments == 100000000L
         }
     }
 
@@ -372,7 +452,7 @@ nextflow_function {
         }
         then {
             assert function.success
-            assert function.result.rawFragments == 60000000L
+            assert function.result.rawFragments == 40000000L
         }
     }
 
