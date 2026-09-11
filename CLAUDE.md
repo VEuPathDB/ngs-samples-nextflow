@@ -29,8 +29,8 @@ nextflow run main.nf --input /path/to/samplesheet --outDir /path/to/output \
 nextflow run main.nf --samplesheetName custom.csv --input /path/to/data \
   --referenceFasta /path/to/target_organism.fasta
 
-# Specify assay type for subsampling (targetCoverage applies to DNASeq/ChipSeq; RNASeq
-# uses a fixed read target instead)
+# Specify assay type for subsampling (targetCoverage applies to DNASeq only; RNASeq and
+# ChipSeq use fragment-count targets instead)
 nextflow run main.nf --assayType RNASeq --input /path/to/data \
   --referenceFasta /path/to/target_organism.fasta
 ```
@@ -96,7 +96,8 @@ nextflow run main.nf -c conf/lsf.config
   size is measured from this file. Gzipped FASTA is accepted.
 - `assayType`: "DNASeq", "RNASeq", or "ChipSeq" (default: `"DNASeq"`). Unrecognized values
   fail loudly rather than silently defaulting.
-- `targetCoverage`: Coverage target for non-RNASeq assays (default: `60`)
+- `targetCoverage`: Coverage target for DNASeq only (default: `60`). RNASeq and ChipSeq set
+  their targets as fragment counts instead
 - `minOnTargetFraction`: Fraction floor, which doubles as the inflation cap (default: `0.05`,
   i.e. never retain more than 20x a clean sample's requirement)
 - `minPlausibleFraction`: Below this a sample is flagged (default: `0.01`). All samples
@@ -145,8 +146,9 @@ Expected CSV format with header:
 - `SKETCH_REFERENCE` fails loudly (rather than producing a bogus genome size) if
   `--referenceFasta` has no FASTA headers, no sequence characters, or is not predominantly
   nucleotide (e.g. a protein FASTA)
-- `workflow.onComplete` raises an error if every sample was flagged as below
-  `minPlausibleFraction`, since that usually means `--referenceFasta` is the wrong organism
+- A sample below `minPlausibleFraction` is warned about individually and marked in
+  `sample_metrics.csv`. This is not treated as a run-level error: low on-target fractions are
+  expected wherever the target organism is sequenced out of host tissue
 
 ## File Locations
 
@@ -171,8 +173,11 @@ Expected CSV format with header:
   fraction via sourmash k-mer containment against `SKETCH_REFERENCE`'s sketch of
   `--referenceFasta`; `modules/local/depth_policy.nf` turns that fraction into a raw-read
   target; `SUBSAMPLE_FASTQ` retains that many raw reads with seqtk
-- **Coverage calculation**: DNASeq/ChipSeq target `targetCoverage` (default 60x); RNASeq uses
-  a fixed 20,000,000-read target instead of a coverage figure
-- **Read limits**: Bounded between 1M and 100M reads per sample (DNASeq/ChipSeq only)
+- **Depth targets**: three rules, one per assay. DNASeq targets `targetCoverage` (default 60x),
+  linear in genome size. RNASeq uses a flat 20,000,000-fragment target, since transcriptome
+  complexity barely tracks genome size. ChipSeq scales as the square root of genome size above
+  a 3,000,000-fragment floor (which binds only below ~24Mb), matching the scaling implied by the
+  modENCODE worm/fly and ENCODE human guidelines
+- **Fragment limits**: Bounded between 1M and 100M fragments per sample
 - **Paired-end handling**: Maintains read pairing using consistent random seed
 - **Container**: Uses `staphb/seqtk:1.4` Docker image
