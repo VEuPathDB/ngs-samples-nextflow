@@ -339,12 +339,44 @@ nextflow_function {
         }
         then {
             assert function.success
-            assert function.result.targetOnTargetFragments == 20000000L
+            assert function.result.targetOnTargetFragments == 3000000L
             assert function.result.estimatedCoverage == null
         }
     }
 
-    test("ChipSeq holds at the floor at fly scale") {
+    test("ChipSeq holds at the floor for a compact genome well under the crossover") {
+        function "depthPlan"
+        when {
+            function {
+                """
+                input[0] = [onTargetFraction: 1.0d, totalReads: 500000000L, readLength: 150, mateCount: 2, pilotReads: 100000]
+                input[1] = [assayType: 'ChipSeq', genomeSize: 10000000L, targetCoverage: 60, minOnTargetFraction: 0.05d, minPlausibleFraction: 0.01d]
+                """
+            }
+        }
+        then {
+            assert function.success
+            assert function.result.targetOnTargetFragments == 3000000L
+        }
+    }
+
+    test("ChipSeq leaves the floor just above the crossover") {
+        function "depthPlan"
+        when {
+            function {
+                """
+                input[0] = [onTargetFraction: 1.0d, totalReads: 500000000L, readLength: 150, mateCount: 2, pilotReads: 100000]
+                input[1] = [assayType: 'ChipSeq', genomeSize: 25000000L, targetCoverage: 60, minOnTargetFraction: 0.05d, minPlausibleFraction: 0.01d]
+                """
+            }
+        }
+        then {
+            assert function.success
+            assert function.result.targetOnTargetFragments == 3061862L
+        }
+    }
+
+    test("ChipSeq scales at fly scale") {
         function "depthPlan"
         when {
             function {
@@ -356,7 +388,7 @@ nextflow_function {
         }
         then {
             assert function.success
-            assert function.result.targetOnTargetFragments == 20000000L
+            assert function.result.targetOnTargetFragments == 8215838L
         }
     }
 
@@ -452,7 +484,7 @@ nextflow_function {
         }
         then {
             assert function.success
-            assert function.result.rawFragments == 40000000L
+            assert function.result.rawFragments == 7035622L
         }
     }
 

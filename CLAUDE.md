@@ -175,8 +175,8 @@ Expected CSV format with header:
   target; `SUBSAMPLE_FASTQ` retains that many raw reads with seqtk
 - **Depth targets**: three rules, one per assay. DNASeq targets `targetCoverage` (default 60x),
   linear in genome size. RNASeq uses a flat 20,000,000-fragment target, since transcriptome
-  complexity barely tracks genome size. ChipSeq uses a 20,000,000-fragment floor that scales as
-  the square root of genome size above ~1.07Gb, matching the sublinear scaling implied by the
+  complexity barely tracks genome size. ChipSeq scales as the square root of genome size above
+  a 3,000,000-fragment floor (which binds only below ~24Mb), matching the scaling implied by the
   modENCODE worm/fly and ENCODE human guidelines
 - **Fragment limits**: Bounded between 1M and 100M fragments per sample
 - **Paired-end handling**: Maintains read pairing using consistent random seed

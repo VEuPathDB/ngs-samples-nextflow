@@ -27,9 +27,9 @@ import groovy.transform.Field
 // modENCODE's worm/fly minimums and ENCODE's human ones independently imply an exponent
 // near 0.5. The anchor sits above those published figures because they count uniquely
 // mapped reads while this target is measured before alignment and duplicate removal.
-// The floor is a deliberate over-provision: ChIP-seq is a small share of this workload,
-// so the cost of too much depth is lower than the cost of repeating an experiment.
-@Field final long   CHIPSEQ_FLOOR_FRAGMENTS  = 20000000L
+// The floor only guards the smallest genomes: it binds below ~24Mb, where it and the curve
+// agree closely, so depth is set by the curve for essentially every organism here.
+@Field final long   CHIPSEQ_FLOOR_FRAGMENTS  =  3000000L
 @Field final long   CHIPSEQ_ANCHOR_FRAGMENTS =  7500000L
 @Field final long   CHIPSEQ_ANCHOR_GENOME    = 150000000L
 @Field final double CHIPSEQ_GENOME_EXPONENT  = 0.5d

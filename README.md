@@ -62,7 +62,7 @@ sample2,data/sample2_R1.fastq.gz,data/sample2_R2.fastq.gz,treatment
 | `--outDir` | Output directory for the processed FASTQs and final samplesheet |
 | `--referenceFasta` | **Required.** Target organism FASTA. Genome size is measured from it and it is used to estimate each sample's on-target fraction. Gzipped FASTA is accepted |
 | `--assayType` | `DNASeq`, `RNASeq`, or `ChipSeq` — determines the read-subsampling target (default `DNASeq`). Unrecognized values fail loudly |
-| `--targetCoverage` | Coverage target for DNASeq only (default `60`). RNASeq targets a flat 20M on-target fragments; ChipSeq starts at a 20M floor and scales as the square root of genome size above ~1.07Gb |
+| `--targetCoverage` | Coverage target for DNASeq only (default `60`). RNASeq targets a flat 20M on-target fragments; ChipSeq scales as the square root of genome size above a 3M floor |
 | `--minOnTargetFraction` | Fraction floor, which doubles as the inflation cap — never retain more than `1/minOnTargetFraction` times a clean sample's requirement (default `0.05`) |
 | `--minPlausibleFraction` | Below this a sample is flagged in `sample_metrics.csv` (default `0.01`). Low fractions are expected for host-dominated samples; a whole batch flagged may instead mean the wrong `--referenceFasta` |
 | `--pilotSize` | Reads drawn per sample to estimate on-target fraction (default `100000`) |
@@ -102,19 +102,21 @@ so flagged samples are routine rather than an error. If *every* sample in a batc
 and host contamination doesn't explain it, check that `--referenceFasta` is the right organism.
 
 **ChIP-seq depth scales with genome size, but sublinearly.** Depth is set by
-`max(20,000,000, 7,500,000 * sqrt(genomeSize / 150Mb))`, clamped at 100M. Reads-per-peak is
+`max(3,000,000, 7,500,000 * sqrt(genomeSize / 150Mb))`, clamped at 100M. Reads-per-peak is
 genome-independent and peak count grows slowly with genome size; only background depth is
 linear, so a square-root exponent fits the published guidance better than either a flat
 constant or `targetCoverage`. Both anchor points imply it independently: modENCODE specifies
 5M uniquely mapped reads for broad marks in worm/fly (~150Mb) and ENCODE 20M in human
-(~3.1Gb), a 4x depth increase across a 20x genome increase. The 20M floor sits deliberately
-above those minimums, so in practice the curve only engages above ~1.07Gb:
+(~3.1Gb), a 4x depth increase across a 20x genome increase. The 3M floor binds only below
+~24Mb, where it and the curve agree closely, so depth is set by the curve for essentially
+every organism here:
 
 | Genome | Example | Target |
 |---|---|---|
-| 23 Mb | *P. falciparum* | 20,000,000 (floor) |
-| 180 Mb | *D. melanogaster* | 20,000,000 (floor) |
-| 400 Mb | *S. mansoni* | 20,000,000 (floor) |
+| 23 Mb | *P. falciparum* | 3,000,000 (floor) |
+| 65 Mb | *T. gondii* | 4,937,104 |
+| 180 Mb | *D. melanogaster* | 8,215,838 |
+| 400 Mb | *S. mansoni* | 12,247,448 |
 | 1.28 Gb | *A. aegypti* | 21,908,902 |
 | 3.1 Gb | human | 34,095,454 |
 | 16 Gb | wheat | 77,459,666 |
