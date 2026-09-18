@@ -1,0 +1,55 @@
+nextflow_function {
+
+    name "Test read layout normalisation"
+    script "../read_layout.nf"
+    tag "read_layout"
+
+    test("single fastq arrives as a bare Path and is wrapped as one-file single-end") {
+        function "normalizeReads"
+        when {
+            function {
+                """
+                def f = java.nio.file.Files.createTempFile("SRR000001", ".fastq.gz")
+                f.text = "x" * 4096
+                input[0] = f
+                """
+            }
+        }
+        then {
+            assert function.success
+            assert function.result.size() == 1
+            assert function.result[0].toString().endsWith(".fastq.gz")
+        }
+    }
+
+    test("two fastqs are returned unchanged as paired") {
+        function "normalizeReads"
+        when {
+            function {
+                """
+                input[0] = [file("a_1.fastq.gz"), file("a_2.fastq.gz")]
+                """
+            }
+        }
+        then {
+            assert function.success
+            assert function.result.size() == 2
+        }
+    }
+
+    test("three fastqs fail loudly with the sample id in the message") {
+        function "normalizeReads"
+        when {
+            function {
+                """
+                input[0] = [file("a.fastq.gz"), file("a_1.fastq.gz"), file("a_2.fastq.gz")]
+                input[1] = "SampleX"
+                """
+            }
+        }
+        then {
+            assert function.failed
+            assert function.stdout.join("\n").contains("SampleX") || function.stderr.join("\n").contains("SampleX")
+        }
+    }
+}

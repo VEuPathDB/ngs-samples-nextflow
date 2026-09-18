@@ -1,6 +1,7 @@
 include { SRATOOLS_FASTERQDUMP } from '../modules/nf-core/sratools/fasterqdump/main'
 include { SRATOOLS_PREFETCH    } from '../modules/nf-core/sratools/prefetch/main'
 include { PREPARE_SAMPLES      } from './prepare_samples'
+include { normalizeReads       } from '../modules/local/read_layout'
 
 workflow RETRIEVE_FROM_SRA {
 
@@ -19,11 +20,9 @@ workflow RETRIEVE_FROM_SRA {
 
     grouped_reads = SRATOOLS_FASTERQDUMP.out.reads
         .map { meta, reads ->
-            if (reads.size() != 1 && reads.size() != 2) {
-                throw new IllegalStateException("Sample ${meta.id}: fasterq-dump produced ${reads.size()} files; expected 1 (single-end) or 2 (paired). A 3-file split indicates unpaired reads mixed with pairs, which this pipeline cannot currently concatenate safely.")
-            }
-            meta.hasPairedReads = reads.size() == 2
-            return [ meta.id, meta, reads ]
+            def files = normalizeReads(reads, meta.id)
+            meta.hasPairedReads = files.size() == 2
+            return [ meta.id, meta, files ]
         }
         .groupTuple(by: 0)
         .map { sample_id, metas, read_lists ->
