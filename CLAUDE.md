@@ -163,7 +163,9 @@ Expected CSV format with header:
 ### FASTQ File Concatenation
 - **Purpose**: Handles samplesheets with multiple rows per sample ID
 - **Implementation**: Uses `CONCATENATE_FASTQ` process to merge files before formatting
-- **Supported patterns**: Automatically detects R1/R2 files using `_1.fastq`, `_2.fastq`, `_R1`, `_R2` patterns
+- **Mate assignment**: By position, never by filename. Local mode takes R1/R2 from the samplesheet
+  columns; SRA mode from fasterq-dump's `_1`/`_2` output. Both merge runs via `mergeRuns`
+  (`modules/local/read_layout.nf`) into `[ meta, [r1 files], [r2 files] ]`, index-aligned
 - **Output**: Single concatenated file per sample (or paired files for paired-end data)
 
 ### Contamination-Aware Subsampling

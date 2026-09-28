@@ -1,6 +1,6 @@
 nextflow_function {
 
-    name "Test read layout normalisation"
+    name "Test read layout helpers"
     script "../read_layout.nf"
     tag "read_layout"
 
@@ -50,6 +50,78 @@ nextflow_function {
         then {
             assert function.failed
             assert function.stdout.join("\n").contains("SampleX") || function.stderr.join("\n").contains("SampleX")
+        }
+    }
+
+    test("fasterq-dump mates are ordered _1 before _2 regardless of arrival order") {
+        function "normalizeReads"
+        when {
+            function {
+                """
+                input[0] = [file("a_2.fastq.gz"), file("a_1.fastq.gz")]
+                """
+            }
+        }
+        then {
+            assert function.success
+            assert function.result.collect { file(it).name } == ["a_1.fastq.gz", "a_2.fastq.gz"]
+        }
+    }
+
+    test("paired runs merge into index-aligned mate lists") {
+        function "mergeRuns"
+        when {
+            function {
+                """
+                input[0] = [[id: 'S', var1: 'x'], [id: 'S', var1: 'x']]
+                input[1] = [[file("runA_1.fq.gz")], [file("runB_1.fq.gz")]]
+                input[2] = [[file("runA_2.fq.gz")], [file("runB_2.fq.gz")]]
+                """
+            }
+        }
+        then {
+            assert function.success
+            def (meta, r1, r2) = function.result
+            assert meta == [id: 'S', var1: 'x', hasPairedReads: true]
+            assert r1.collect { file(it).name } == ["runA_1.fq.gz", "runB_1.fq.gz"]
+            assert r2.collect { file(it).name } == ["runA_2.fq.gz", "runB_2.fq.gz"]
+        }
+    }
+
+    test("single-end runs merge with an empty R2 list") {
+        function "mergeRuns"
+        when {
+            function {
+                """
+                input[0] = [[id: 'S'], [id: 'S']]
+                input[1] = [[file("a.fq.gz")], [file("b.fq.gz")]]
+                input[2] = [[], []]
+                """
+            }
+        }
+        then {
+            assert function.success
+            def (meta, r1, r2) = function.result
+            assert meta.hasPairedReads == false
+            assert r1.size() == 2
+            assert r2.isEmpty()
+        }
+    }
+
+    test("mixing paired and single-end runs in one sample fails loudly") {
+        function "mergeRuns"
+        when {
+            function {
+                """
+                input[0] = [[id: 'MixedSample'], [id: 'MixedSample']]
+                input[1] = [[file("a_1.fq.gz")], [file("b.fq.gz")]]
+                input[2] = [[file("a_2.fq.gz")], []]
+                """
+            }
+        }
+        then {
+            assert function.failed
+            assert (function.stdout + function.stderr).join("\n").contains("MixedSample")
         }
     }
 }

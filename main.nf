@@ -6,6 +6,7 @@ include { RETRIEVE_FROM_SRA } from './workflows/retrieve_from_sra'
 include { PREPARE_SAMPLES   } from './workflows/prepare_samples'
 include { SKETCH_REFERENCE  } from './modules/local/sketch_reference'
 include { EXPAND_SRX_IDS    } from './modules/local/expand_srx_ids'
+include { mergeRuns         } from './modules/local/read_layout'
 
 workflow {
 
@@ -47,23 +48,14 @@ workflow {
         RETRIEVE_FROM_SRA(grouped_sra_samples, reference_sig, policy)
     }
     else {
-        grouped_local_samples = samples.map { row ->
-                def files = [ file(params.input + "/" + row[1], checkIfExists: true) ]
-                boolean hasPairedReads = false
-                if (row[2]) {
-                    files.add(file(params.input + "/" + row[2], checkIfExists: true))
-                    hasPairedReads = true
-                }
-                return [ row[0], [id: row[0], var1: row[3], hasPairedReads: hasPairedReads], files ]
+        grouped_local_samples = samples
+            .map { row ->
+                def r1 = [ file(params.input + "/" + row[1], checkIfExists: true) ]
+                def r2 = row[2] ? [ file(params.input + "/" + row[2], checkIfExists: true) ] : []
+                return [ row[0], [id: row[0], var1: row[3]], r1, r2 ]
             }
             .groupTuple(by: 0)
-            .map { sample_id, metas, file_lists ->
-                def firstHasPairedReads = metas[0].hasPairedReads
-                if (!metas.every { it.hasPairedReads == firstHasPairedReads }) {
-                    throw new IllegalStateException("Samples must be all paired or unpaired. Mixed results found")
-                }
-                return [ metas[0], file_lists.flatten() ]
-            }
+            .map { sample_id, metas, r1_lists, r2_lists -> mergeRuns(metas, r1_lists, r2_lists) }
 
         PREPARE_SAMPLES(grouped_local_samples, reference_sig, policy)
     }
