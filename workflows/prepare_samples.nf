@@ -7,7 +7,7 @@ include { depthPlan             } from '../modules/local/depth_policy'
 workflow PREPARE_SAMPLES {
 
     take:
-    grouped_reads      // [ meta, [files] ]
+    grouped_reads      // [ meta, [r1 files], [r2 files] ]; r2 empty for single-end
     reference_sig      // path (value channel)
     policy             // map (value channel)
 

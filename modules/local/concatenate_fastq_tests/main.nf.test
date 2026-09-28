@@ -10,7 +10,8 @@ nextflow_process {
             process {
                 """
                 input[0] = [ [id: 'solo', hasPairedReads: false],
-                    [ file("${projectDir}/tests/fixtures/mix10.fastq.gz", checkIfExists: true) ] ]
+                    [ file("${projectDir}/tests/fixtures/mix10.fastq.gz", checkIfExists: true) ],
+                    [] ]
                 """
             }
         }
@@ -30,19 +31,41 @@ nextflow_process {
             process {
                 """
                 input[0] = [ [id: 'pair', hasPairedReads: true],
-                    [ file("${projectDir}/tests/fixtures/pair_1.fastq.gz", checkIfExists: true),
-                      file("${projectDir}/tests/fixtures/pair_2.fastq.gz", checkIfExists: true) ] ]
+                    [ file("${projectDir}/tests/fixtures/pair_1.fastq.gz", checkIfExists: true) ],
+                    [ file("${projectDir}/tests/fixtures/pair_2.fastq.gz", checkIfExists: true) ] ]
                 """
             }
         }
         then {
             assert process.success
-            def outFiles = process.out.reads[0][1].collect { file(it) }.sort { it.name }
+            def outFiles = process.out.reads[0][1].collect { file(it) }
             assert outFiles.size() == 2
             def r1 = outFiles.find { it.name == "pair_concat_1.fastq.gz" }
             def r2 = outFiles.find { it.name == "pair_concat_2.fastq.gz" }
-            assert r1 != null
-            assert r2 != null
+            assert r1.bytes == file("${projectDir}/tests/fixtures/pair_1.fastq.gz").bytes
+            assert r2.bytes == file("${projectDir}/tests/fixtures/pair_2.fastq.gz").bytes
+        }
+    }
+
+    test("mates are assigned by position, not by filename") {
+        when {
+            process {
+                """
+                def illuminaR1 = new File("${outputDir}", "run164.A1.s_3_1_sequence.fastq.gz")
+                illuminaR1.bytes = file("${projectDir}/tests/fixtures/pair_1.fastq.gz").bytes
+                def misleadingR2 = new File("${outputDir}", "looks_like_R1.fastq.gz")
+                misleadingR2.bytes = file("${projectDir}/tests/fixtures/pair_2.fastq.gz").bytes
+
+                input[0] = [ [id: 'illumina', hasPairedReads: true],
+                    [ file(illuminaR1.path) ], [ file(misleadingR2.path) ] ]
+                """
+            }
+        }
+        then {
+            assert process.success
+            def outFiles = process.out.reads[0][1].collect { file(it) }
+            def r1 = outFiles.find { it.name == "illumina_concat_1.fastq.gz" }
+            def r2 = outFiles.find { it.name == "illumina_concat_2.fastq.gz" }
             assert r1.bytes == file("${projectDir}/tests/fixtures/pair_1.fastq.gz").bytes
             assert r2.bytes == file("${projectDir}/tests/fixtures/pair_2.fastq.gz").bytes
         }
@@ -54,7 +77,8 @@ nextflow_process {
                 """
                 input[0] = [ [id: 'multi', hasPairedReads: false],
                     [ file("${projectDir}/tests/fixtures/mix10.fastq.gz", checkIfExists: true),
-                      file("${projectDir}/tests/fixtures/mix10.fastq.gz", checkIfExists: true) ] ]
+                      file("${projectDir}/tests/fixtures/mix10.fastq.gz", checkIfExists: true) ],
+                    [] ]
                 """
             }
         }
@@ -63,27 +87,47 @@ nextflow_process {
             def raw = process.out.reads[0][1]
             def outFiles = raw instanceof List ? raw : [raw]
             assert outFiles.size() == 1
-            def outFile = path(outFiles[0])
-            assert outFile.linesGzip.size() / 4 == 20000
+            assert path(outFiles[0]).linesGzip.size() / 4 == 20000
         }
     }
 
-    test("paired-end single-run input where one filename matches both mate patterns falls through and fails") {
+    test("paired-end multi-run input keeps mates aligned across runs") {
         when {
             process {
                 """
-                def ambiguous = new File("${outputDir}", "ambiguous_R1_R2.fastq.gz")
-                ambiguous.bytes = file("${projectDir}/tests/fixtures/mix10.fastq.gz").bytes
-                def nomatch = new File("${outputDir}", "nomatch.fastq.gz")
-                nomatch.bytes = file("${projectDir}/tests/fixtures/mix10.fastq.gz").bytes
+                def pair1 = file("${projectDir}/tests/fixtures/pair_1.fastq.gz", checkIfExists: true)
+                def pair2 = file("${projectDir}/tests/fixtures/pair_2.fastq.gz", checkIfExists: true)
+                def mix = file("${projectDir}/tests/fixtures/mix10.fastq.gz", checkIfExists: true)
+                input[0] = [ [id: 'multipair', hasPairedReads: true], [ pair1, mix ], [ pair2, mix ] ]
+                """
+            }
+        }
+        then {
+            assert process.success
+            def outFiles = process.out.reads[0][1].collect { path(it) }
+            def r1 = outFiles.find { it.fileName.toString() == "multipair_concat_1.fastq.gz" }.linesGzip
+            def r2 = outFiles.find { it.fileName.toString() == "multipair_concat_2.fastq.gz" }.linesGzip
+            def pair1 = path("${projectDir}/tests/fixtures/pair_1.fastq.gz").linesGzip
+            def pair2 = path("${projectDir}/tests/fixtures/pair_2.fastq.gz").linesGzip
+            assert r1.size() == r2.size()
+            assert r1.take(pair1.size()) == pair1
+            assert r2.take(pair2.size()) == pair2
+        }
+    }
 
-                input[0] = [ [id: 'ambig', hasPairedReads: true],
-                    [ file(ambiguous.path), file(nomatch.path) ] ]
+    test("paired-end input with unequal mate counts fails with a message") {
+        when {
+            process {
+                """
+                def pair1 = file("${projectDir}/tests/fixtures/pair_1.fastq.gz", checkIfExists: true)
+                def pair2 = file("${projectDir}/tests/fixtures/pair_2.fastq.gz", checkIfExists: true)
+                input[0] = [ [id: 'lopsided', hasPairedReads: true], [ pair1, pair1 ], [ pair2 ] ]
                 """
             }
         }
         then {
             assert process.failed
+            assert process.stdout.join("\n").contains("2 R1 file(s) but 1 R2 file(s)")
         }
     }
 }
