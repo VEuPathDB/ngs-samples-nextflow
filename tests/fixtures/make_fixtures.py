@@ -126,3 +126,24 @@ with open(os.path.join(HERE, "norelation.fastq.gz"), "wb") as raw:
             out.write(("@%s\n%s\n+\n%s\n" % (name, seq, "I" * len(seq))).encode())
 
 print("norelation.fastq.gz: %d reads, no relation to ref.fasta" % NORELATION_N)
+
+# Short single-line FASTA reads drawn from ref.fasta, shorter than sourmash's k=31, for
+# testing that MEASURE_SAMPLE counts FASTA input and skips the measurement.
+SHORT_FASTA_N = 500
+
+with open(os.path.join(HERE, "short_reads.fasta.gz"), "wb") as raw:
+    with gzip.GzipFile(filename="", mode="wb", fileobj=raw, mtime=0) as out:
+        for i in range(SHORT_FASTA_N):
+            pos = random.randint(0, REF_LEN - 25)
+            out.write((">short_%d\n%s\n" % (i, ref[pos:pos + 20 + i % 6])).encode())
+
+print("short_reads.fasta.gz: %d FASTA reads of 20-25bp" % SHORT_FASTA_N)
+
+# MEASURE_SAMPLE only ever sees gzipped input (CONCATENATE_FASTQ guarantees it), so the
+# unrecognized-format test needs a gzipped non-sequence file.
+with open(os.path.join(HERE, "not_a_fasta.gff.gz"), "wb") as raw:
+    with gzip.GzipFile(filename="", mode="wb", fileobj=raw, mtime=0) as out:
+        with open(os.path.join(HERE, "not_a_fasta.gff"), "rb") as gff_in:
+            out.write(gff_in.read())
+
+print("not_a_fasta.gff.gz: gzip of not_a_fasta.gff")

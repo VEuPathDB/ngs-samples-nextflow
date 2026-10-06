@@ -570,4 +570,45 @@ nextflow_function {
             assert !function.success
         }
     }
+
+    test("skipped measurement retains every fragment and is not flagged") {
+        function "depthPlan"
+        when {
+            function {
+                """
+                input[0] = [onTargetFraction: null, skipReason: 'below_min_fragments', totalReads: 160000L, readLength: 22, mateCount: 1, pilotReads: 0]
+                input[1] = [assayType: 'RNASeq', genomeSize: 35000000L, targetCoverage: 60, minOnTargetFraction: 0.05d, minPlausibleFraction: 0.01d]
+                """
+            }
+        }
+        then {
+            assert function.success
+            assert function.result.rawFragments == 160000L
+            assert function.result.flagged == false
+            assert function.result.estimatedCoverage == null
+        }
+    }
+
+    test("skipped measurement still validates totalReads") {
+        function "depthPlan"
+        when {
+            function {
+                """
+                input[0] = [onTargetFraction: null, skipReason: 'fasta_input', totalReads: 0L, readLength: 22, mateCount: 1, pilotReads: 0]
+                input[1] = [assayType: 'RNASeq', genomeSize: 35000000L, targetCoverage: 60, minOnTargetFraction: 0.05d, minPlausibleFraction: 0.01d]
+                """
+            }
+        }
+        then {
+            assert !function.success
+        }
+    }
+
+    test("minTargetFragments exposes the one million fragment floor") {
+        function "minTargetFragments"
+        then {
+            assert function.success
+            assert function.result == 1000000L
+        }
+    }
 }

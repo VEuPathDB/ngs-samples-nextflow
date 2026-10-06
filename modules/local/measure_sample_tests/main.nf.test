@@ -23,6 +23,7 @@ nextflow_process {
                 input[0] = Channel.of([ [id: 'mix10'],
                     file("${projectDir}/tests/fixtures/mix10.fastq.gz", checkIfExists: true) ])
                 input[1] = SKETCH_REFERENCE.out.sig
+                input[2] = 0
                 """
             }
         }
@@ -56,6 +57,7 @@ nextflow_process {
                 input[0] = Channel.of([ [id: 'mix10'],
                     file("${projectDir}/tests/fixtures/mix10.fastq.gz", checkIfExists: true) ])
                 input[1] = SKETCH_REFERENCE.out.sig
+                input[2] = 0
                 """
             }
         }
@@ -89,6 +91,7 @@ nextflow_process {
                 input[0] = Channel.of([ [id: 'norelation'],
                     file("${projectDir}/tests/fixtures/norelation.fastq.gz", checkIfExists: true) ])
                 input[1] = SKETCH_REFERENCE.out.sig
+                input[2] = 0
                 """
             }
         }
@@ -97,6 +100,102 @@ nextflow_process {
             def m = new groovy.json.JsonSlurper().parseText(
                 file(process.out.metrics[0][1]).text)
             assert m.onTargetFraction == 0.0
+        }
+    }
+
+    test("skips measurement for a sample at or below the minimum fragment count") {
+        setup {
+            run("SKETCH_REFERENCE") {
+                script "../sketch_reference.nf"
+                process {
+                    """
+                    input[0] = file("${projectDir}/tests/fixtures/ref.fasta", checkIfExists: true)
+                    """
+                }
+            }
+        }
+        when {
+            params { pilotSize = 100000 }
+            process {
+                """
+                input[0] = Channel.of([ [id: 'mix10'],
+                    file("${projectDir}/tests/fixtures/mix10.fastq.gz", checkIfExists: true) ])
+                input[1] = SKETCH_REFERENCE.out.sig
+                input[2] = 10000
+                """
+            }
+        }
+        then {
+            assert process.success
+            def m = new groovy.json.JsonSlurper().parseText(
+                file(process.out.metrics[0][1]).text)
+            assert m.skipReason == 'below_min_fragments'
+            assert m.format == 'fastq'
+            assert m.onTargetFraction == null
+            assert m.totalReads == 10000
+            assert m.readLength == 150
+        }
+    }
+
+    test("counts FASTA input and skips measurement even for reads shorter than k") {
+        setup {
+            run("SKETCH_REFERENCE") {
+                script "../sketch_reference.nf"
+                process {
+                    """
+                    input[0] = file("${projectDir}/tests/fixtures/ref.fasta", checkIfExists: true)
+                    """
+                }
+            }
+        }
+        when {
+            params { pilotSize = 100000 }
+            process {
+                """
+                input[0] = Channel.of([ [id: 'short'],
+                    file("${projectDir}/tests/fixtures/short_reads.fasta.gz", checkIfExists: true) ])
+                input[1] = SKETCH_REFERENCE.out.sig
+                input[2] = 0
+                """
+            }
+        }
+        then {
+            assert process.success
+            def m = new groovy.json.JsonSlurper().parseText(
+                file(process.out.metrics[0][1]).text)
+            assert m.skipReason == 'fasta_input'
+            assert m.format == 'fasta'
+            assert m.onTargetFraction == null
+            assert m.totalReads == 500
+            assert m.readLength == 22
+            assert m.pilotReads == 0
+        }
+    }
+
+    test("fails loudly on input that is neither FASTQ nor FASTA") {
+        setup {
+            run("SKETCH_REFERENCE") {
+                script "../sketch_reference.nf"
+                process {
+                    """
+                    input[0] = file("${projectDir}/tests/fixtures/ref.fasta", checkIfExists: true)
+                    """
+                }
+            }
+        }
+        when {
+            process {
+                """
+                input[0] = Channel.of([ [id: 'gff'],
+                    file("${projectDir}/tests/fixtures/not_a_fasta.gff.gz", checkIfExists: true) ])
+                input[1] = SKETCH_REFERENCE.out.sig
+                input[2] = 0
+                """
+            }
+        }
+        then {
+            assert process.failed
+            assert process.errorReport.contains('neither FASTQ nor FASTA')
         }
     }
 }

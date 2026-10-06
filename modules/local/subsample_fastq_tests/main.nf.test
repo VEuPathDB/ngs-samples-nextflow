@@ -11,7 +11,7 @@ nextflow_process {
                 """
                 input[0] = Channel.of([ [id: 'cut', hasPairedReads: false],
                     file("${projectDir}/tests/fixtures/mix10.fastq.gz", checkIfExists: true),
-                    2000L, 10000L ])
+                    2000L, 10000L, "fastq" ])
                 """
             }
         }
@@ -30,7 +30,7 @@ nextflow_process {
                 """
                 input[0] = Channel.of([ [id: 'keep', hasPairedReads: false],
                     file("${projectDir}/tests/fixtures/mix10.fastq.gz", checkIfExists: true),
-                    50000L, 10000L ])
+                    50000L, 10000L, "fastq" ])
                 """
             }
         }
@@ -49,7 +49,7 @@ nextflow_process {
                 input[0] = Channel.of([ [id: 'cutpair', hasPairedReads: true],
                     [ file("${projectDir}/tests/fixtures/pair_1.fastq.gz", checkIfExists: true),
                       file("${projectDir}/tests/fixtures/pair_2.fastq.gz", checkIfExists: true) ],
-                    2000L, 10000L ])
+                    2000L, 10000L, "fastq" ])
                 """
             }
         }
@@ -65,6 +65,24 @@ nextflow_process {
             def n2 = path(r2.path).linesGzip.size() / 4
             assert n1 > 1800 && n1 < 2200
             assert n1 == n2
+        }
+    }
+
+    test("names FASTA output with a fasta extension") {
+        when {
+            process {
+                """
+                input[0] = Channel.of([ [id: 'short', hasPairedReads: false],
+                    file("${projectDir}/tests/fixtures/short_reads.fasta.gz", checkIfExists: true),
+                    500L, 500L, "fasta" ])
+                """
+            }
+        }
+        then {
+            assert process.success
+            def out = file(process.out.reads[0][1])
+            assert out.name == "short_subsampled.fasta.gz"
+            assert path(out.toString()).linesGzip[0].startsWith(">")
         }
     }
 }
