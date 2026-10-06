@@ -2,7 +2,7 @@ include { FORMAT_INPUT_FROM_SRA } from '../modules/local/format_input_from_sra'
 include { CONCATENATE_FASTQ     } from '../modules/local/concatenate_fastq'
 include { SUBSAMPLE_FASTQ       } from '../modules/local/subsample_fastq'
 include { MEASURE_SAMPLE        } from '../modules/local/measure_sample'
-include { depthPlan             } from '../modules/local/depth_policy'
+include { depthPlan; minTargetFragments } from '../modules/local/depth_policy'
 
 workflow PREPARE_SAMPLES {
 
@@ -14,7 +14,7 @@ workflow PREPARE_SAMPLES {
     main:
     CONCATENATE_FASTQ(grouped_reads)
 
-    MEASURE_SAMPLE(CONCATENATE_FASTQ.out.reads, reference_sig)
+    MEASURE_SAMPLE(CONCATENATE_FASTQ.out.reads, reference_sig, minTargetFragments())
 
     // Join on sample id rather than on the meta map, so the join key stays stable
     // even if a meta field is mutated upstream.
@@ -33,6 +33,10 @@ workflow PREPARE_SAMPLES {
             def metrics = new groovy.json.JsonSlurper().parse(json.toFile()) +
                           [ mateCount: meta.hasPairedReads ? 2 : 1 ]
             def plan = depthPlan(metrics, policyMap)
+            if (metrics.skipReason) {
+                log.info "Sample ${id}: not subsampled (${metrics.skipReason}, " +
+                         "${metrics.totalReads} fragments); all reads retained."
+            }
             if (plan.flagged) {
                 log.warn "Sample ${id}: on-target fraction ${metrics.onTargetFraction} is below " +
                          "minPlausibleFraction (${policyMap.minPlausibleFraction}). Expected for " +
@@ -43,7 +47,9 @@ workflow PREPARE_SAMPLES {
         }
 
     SUBSAMPLE_FASTQ(
-        plans.map { meta, reads, metrics, plan -> [ meta, reads, plan.rawFragments, metrics.totalReads ] }
+        plans.map { meta, reads, metrics, plan ->
+            [ meta, reads, plan.rawFragments, metrics.totalReads, metrics.format ]
+        }
     )
 
     FORMAT_INPUT_FROM_SRA(SUBSAMPLE_FASTQ.out.reads)
@@ -52,16 +58,17 @@ workflow PREPARE_SAMPLES {
         .collectFile(keepHeader: true, storeDir: params.outDir, name: params.samplesheetName)
 
     metrics_header = "sample,on_target_fraction,total_fragments,raw_fragments_used," +
-                     "estimated_coverage,read_length,mate_count,pilot_reads,flagged\n"
+                     "estimated_coverage,read_length,mate_count,pilot_reads,flagged,skip_reason\n"
 
     metrics_csv = plans
         .map { meta, reads, metrics, plan ->
+            def fraction = metrics.onTargetFraction == null ? '' : metrics.onTargetFraction
             def coverage = plan.estimatedCoverage == null
                 ? ''
                 : String.format('%.2f', plan.estimatedCoverage)
-            "${meta.id},${metrics.onTargetFraction},${metrics.totalReads},${plan.rawFragments}," +
+            "${meta.id},${fraction},${metrics.totalReads},${plan.rawFragments}," +
             "${coverage},${metrics.readLength},${metrics.mateCount},${metrics.pilotReads}," +
-            "${plan.flagged}\n"
+            "${plan.flagged},${metrics.skipReason ?: ''}\n"
         }
         .collectFile(name: 'sample_metrics.csv', storeDir: params.outDir,
                      seed: metrics_header, sort: true)

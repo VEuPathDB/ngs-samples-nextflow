@@ -36,6 +36,12 @@ import groovy.transform.Field
 
 @Field final List VALID_ASSAY_TYPES = ["DNASeq", "RNASeq", "ChipSeq"]
 
+// Every target clamps up to this floor, so a sample at or below it is never subsampled
+// and measuring its on-target fraction cannot change the outcome.
+def minTargetFragments() {
+    return MIN_TARGET_FRAGMENTS
+}
+
 def targetOnTargetFragments(Map policy) {
     if (!VALID_ASSAY_TYPES.contains(policy.assayType)) {
         throw new IllegalArgumentException(
@@ -74,11 +80,6 @@ def depthPlan(Map metrics, Map policy) {
             "Invalid metrics.totalReads '${metrics.totalReads}'; must be greater than 0"
         )
     }
-    if (metrics.onTargetFraction == null || (metrics.onTargetFraction as double) < 0.0d || (metrics.onTargetFraction as double) > 1.0d) {
-        throw new IllegalArgumentException(
-            "Invalid metrics.onTargetFraction '${metrics.onTargetFraction}'; must be within [0.0, 1.0]"
-        )
-    }
     if (policy.minOnTargetFraction == null || (policy.minOnTargetFraction as double) <= 0.0d) {
         throw new IllegalArgumentException(
             "Invalid policy.minOnTargetFraction '${policy.minOnTargetFraction}'; must be greater than 0.0"
@@ -86,6 +87,24 @@ def depthPlan(Map metrics, Map policy) {
     }
 
     long basesPerFragment = (metrics.readLength as long) * (metrics.mateCount as long)
+
+    // MEASURE_SAMPLE skipped the on-target measurement, so every fragment is retained.
+    if (metrics.skipReason) {
+        return [
+            targetOnTargetFragments: null,
+            effectiveFraction      : null,
+            rawFragments           : metrics.totalReads as long,
+            basesPerFragment       : basesPerFragment,
+            flagged                : false,
+            estimatedCoverage      : null
+        ]
+    }
+
+    if (metrics.onTargetFraction == null || (metrics.onTargetFraction as double) < 0.0d || (metrics.onTargetFraction as double) > 1.0d) {
+        throw new IllegalArgumentException(
+            "Invalid metrics.onTargetFraction '${metrics.onTargetFraction}'; must be within [0.0, 1.0]"
+        )
+    }
     def policyWithBases = policy + [basesPerFragment: basesPerFragment]
     long targetOnTarget = targetOnTargetFragments(policyWithBases)
 

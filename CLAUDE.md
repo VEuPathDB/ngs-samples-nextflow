@@ -181,5 +181,8 @@ Expected CSV format with header:
   a 3,000,000-fragment floor (which binds only below ~24Mb), matching the scaling implied by the
   modENCODE worm/fly and ENCODE human guidelines
 - **Fragment limits**: Bounded between 1M and 100M fragments per sample
+- **Skipped measurement**: FASTA input, and any sample with at most 1M fragments (the floor, so
+  it could never be subsampled), skips sourmash entirely and keeps every read. The reason is
+  recorded in the `skip_reason` column of `sample_metrics.csv`
 - **Paired-end handling**: Maintains read pairing using consistent random seed
 - **Container**: Uses `staphb/seqtk:1.4` Docker image
