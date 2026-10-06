@@ -46,7 +46,7 @@ process SRATOOLS_FASTERQDUMP {
         ${key_file} \\
         ${sra}
 
-    if [ -f "${meta.id}_2.fastq" ]; then
+    if [ -f "${sra}_2.fastq" ]; then
         mv $outfile $prefix || echo 'No third file'
     fi
 
