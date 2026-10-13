@@ -19,8 +19,8 @@ process CONCATENATE_FASTQ {
 
     script:
     def asList = { it instanceof Collection ? it.toList() : (it ? [it] : []) }
-    def r1 = asList(r1_files)
-    def r2 = asList(r2_files)
+    def r1 = asList.call(r1_files)
+    def r2 = asList.call(r2_files)
 
     def layoutError = null
     if (r1.isEmpty()) {

@@ -7,6 +7,10 @@ process SRATOOLS_FASTERQDUMP {
         'https://depot.galaxyproject.org/singularity/mulled-v2-5f89fe0cd045cb1d615630b9261a1d17943a9b6a:2f4a4c900edd6801ff0068c2b3048b4459d119eb-0' :
         'biocontainers/mulled-v2-5f89fe0cd045cb1d615630b9261a1d17943a9b6a:2f4a4c900edd6801ff0068c2b3048b4459d119eb-0' }"
 
+    errorStrategy 'retry'
+
+    maxRetries 1
+
     input:
     tuple val(meta), path(sra)
     path ncbi_settings
@@ -15,10 +19,6 @@ process SRATOOLS_FASTERQDUMP {
     output:
     tuple val(meta), path('*.fastq.gz'), emit: reads
     path "versions.yml"                , emit: versions
-
-    errorStrategy 'retry'
-
-    maxRetries 1
 
     when:
     task.ext.when == null || task.ext.when

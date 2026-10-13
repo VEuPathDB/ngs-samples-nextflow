@@ -1,5 +1,3 @@
-import groovy.transform.Field
-
 /*
  * Pure depth-policy functions. No params access, no file IO — everything is passed in
  * so this can be unit tested without a pipeline run.
@@ -12,15 +10,15 @@ import groovy.transform.Field
 
 // Cost/runtime sanity bounds: a floor so tiny genomes still get usable depth,
 // a ceiling so huge genomes don't blow up downstream alignment cost.
-@Field final long MIN_TARGET_FRAGMENTS = 1000000L
-@Field final long MAX_TARGET_FRAGMENTS = 100000000L
+def MIN_TARGET_FRAGMENTS() { 1000000L }
+def MAX_TARGET_FRAGMENTS() { 100000000L }
 
 // Each assay sets its target on a different axis, so none of these need pairing
 // adjustment beyond basesPerFragment below.
 
 // RNA-seq depth tracks transcriptome complexity - gene count and expression dynamic
 // range - which moves far less than genome size across these organisms, so it is flat.
-@Field final long RNASEQ_TARGET_FRAGMENTS = 20000000L
+def RNASEQ_TARGET_FRAGMENTS() { 20000000L }
 
 // ChIP-seq depth does scale with genome size, but sublinearly: reads-per-peak is
 // genome-independent, peak count grows slowly, and only background depth is linear.
@@ -29,37 +27,37 @@ import groovy.transform.Field
 // mapped reads while this target is measured before alignment and duplicate removal.
 // The floor only guards the smallest genomes: it binds below ~24Mb, where it and the curve
 // agree closely, so depth is set by the curve for essentially every organism here.
-@Field final long   CHIPSEQ_FLOOR_FRAGMENTS  =  3000000L
-@Field final long   CHIPSEQ_ANCHOR_FRAGMENTS =  7500000L
-@Field final long   CHIPSEQ_ANCHOR_GENOME    = 150000000L
-@Field final double CHIPSEQ_GENOME_EXPONENT  = 0.5d
+def CHIPSEQ_FLOOR_FRAGMENTS() { 3000000L }
+def CHIPSEQ_ANCHOR_FRAGMENTS() { 7500000L }
+def CHIPSEQ_ANCHOR_GENOME() { 150000000L }
+def CHIPSEQ_GENOME_EXPONENT() { 0.5d }
 
-@Field final List VALID_ASSAY_TYPES = ["DNASeq", "RNASeq", "ChipSeq"]
+def VALID_ASSAY_TYPES() { ["DNASeq", "RNASeq", "ChipSeq"] }
 
 // Every target clamps up to this floor, so a sample at or below it is never subsampled
 // and measuring its on-target fraction cannot change the outcome.
 def minTargetFragments() {
-    return MIN_TARGET_FRAGMENTS
+    return MIN_TARGET_FRAGMENTS()
 }
 
 def targetOnTargetFragments(Map policy) {
-    if (!VALID_ASSAY_TYPES.contains(policy.assayType)) {
+    if (!VALID_ASSAY_TYPES().contains(policy.assayType)) {
         throw new IllegalArgumentException(
-            "Unrecognized assayType '${policy.assayType}'; valid values are ${VALID_ASSAY_TYPES}"
+            "Unrecognized assayType '${policy.assayType}'; valid values are ${VALID_ASSAY_TYPES()}"
         )
     }
     if (policy.assayType == "RNASeq") {
-        return RNASEQ_TARGET_FRAGMENTS
+        return RNASEQ_TARGET_FRAGMENTS()
     }
     if (policy.assayType == "ChipSeq") {
-        double scaled = CHIPSEQ_ANCHOR_FRAGMENTS * Math.pow(
-            (policy.genomeSize as double) / CHIPSEQ_ANCHOR_GENOME, CHIPSEQ_GENOME_EXPONENT)
-        return Math.min(MAX_TARGET_FRAGMENTS, Math.max(CHIPSEQ_FLOOR_FRAGMENTS, (long) scaled))
+        double scaled = CHIPSEQ_ANCHOR_FRAGMENTS() * Math.pow(
+            (policy.genomeSize as double) / CHIPSEQ_ANCHOR_GENOME(), CHIPSEQ_GENOME_EXPONENT())
+        return Math.min(MAX_TARGET_FRAGMENTS(), Math.max(CHIPSEQ_FLOOR_FRAGMENTS(), scaled as long))
     }
     // DNASeq, the only coverage-denominated assay. Truncate rather than round: a
     // deliberately conservative (never over-) estimate.
-    long raw = (long) ((policy.genomeSize * policy.targetCoverage) / policy.basesPerFragment)
-    return Math.max(MIN_TARGET_FRAGMENTS, Math.min(MAX_TARGET_FRAGMENTS, raw))
+    long raw = ((policy.genomeSize * policy.targetCoverage) / policy.basesPerFragment) as long
+    return Math.max(MIN_TARGET_FRAGMENTS(), Math.min(MAX_TARGET_FRAGMENTS(), raw))
 }
 
 def depthPlan(Map metrics, Map policy) {
@@ -112,7 +110,7 @@ def depthPlan(Map metrics, Map policy) {
     double effective = Math.max(observed, policy.minOnTargetFraction as double)
 
     long rawFragments = Math.min(
-        (long) Math.ceil(targetOnTarget / effective),
+        Math.ceil(targetOnTarget / effective) as long,
         metrics.totalReads as long
     )
 
