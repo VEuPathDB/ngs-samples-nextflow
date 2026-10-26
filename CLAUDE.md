@@ -140,7 +140,7 @@ Expected CSV format with header:
 
 ### Error Handling
 
-- `SRATOOLS_FASTERQDUMP` has retry logic: falls back from `fasterq-dump` to `fastq-dump` on failure
+- `SRATOOLS_FASTERQDUMP` has retry logic: falls back from `fasterq-dump` to `fastq-dump --split-3` on failure, keeping the same `_1`/`_2` mate layout
 - `SRATOOLS_PREFETCH` uses retry template with exponential backoff
 - Maximum 2 concurrent processes (`maxForks = 2`)
 - `SKETCH_REFERENCE` fails loudly (rather than producing a bogus genome size) if

@@ -24,7 +24,8 @@ process SRATOOLS_FASTERQDUMP {
     task.ext.when == null || task.ext.when
 
     script:
-    def sraCommand = task.attempt > 1 ? "fastq-dump" : "fasterq-dump";
+    // fastq-dump does not split mates by default; --split-3 matches fasterq-dump's output layout.
+    def sraCommand = task.attempt > 1 ? "fastq-dump --split-3" : "fasterq-dump";
     def args = task.ext.args ?: ''
     def args2 = task.ext.args2 ?: ''
     def prefix = task.ext.prefix ?: "${meta.id}"
